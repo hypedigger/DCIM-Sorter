@@ -1,0 +1,17 @@
+# journaux & anciennes versions (contiennent des chemins locaux)
+log/
+.old_version/
+
+# scripts PowerShell historiques (remplaces par l'application)
+move_pictures_menu.ps1
+usb_to_hard_drive.ps1
+
+# icone generee par install_start_menu.py
+photo_organiser.ico
+
+# caches & outils locaux
+__pycache__/
+*.pyc
+.claude/
+*.lnk
+exiftool.exe
