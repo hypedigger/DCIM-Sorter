@@ -580,6 +580,222 @@ def get_all_ext() -> set[str]:
 
 DEFAULT_USB_TARGET = r"E:\Photos"
 
+# ── Langue ──────────────────────────────────────────────────────────────────
+_lang_cache: str | None = None
+
+
+def get_lang() -> str:
+    global _lang_cache
+    if _lang_cache is None:
+        _lang_cache = _s().value("lang", "fr")
+    return _lang_cache
+
+
+def set_lang(v: str):
+    global _lang_cache
+    _lang_cache = v
+    _s().setValue("lang", v)
+
+
+def L(text: str) -> str:
+    """Traduit une chaîne d'interface (clé = texte français source)."""
+    if get_lang() == "fr":
+        return text
+    return _EN.get(text, text)
+
+
+# Dictionnaire français → anglais. Les chaînes absentes restent en français.
+_EN: dict[str, str] = {
+    # Workers (journal, phases)
+    "Pas de date : {n}": "No date: {n}",
+    "Dossier créé : {d}": "Folder created: {d}",
+    "Création dossier : {e}": "Folder creation: {e}",
+    "Existe déjà : {n}": "Already exists: {n}",
+    "Phase 1/2 — Lecture EXIF… {a}/{b}": "Phase 1/2 — Reading EXIF… {a}/{b}",
+    "Phase 1/2 — Lecture EXIF…": "Phase 1/2 — Reading EXIF…",
+    "Phase 2/2 — Copie des fichiers…": "Phase 2/2 — Copying files…",
+    "[Simulation] {n}  →  {d}": "[Preview] {n}  →  {d}",
+    "Déjà présent : {n}": "Already imported: {n}",
+    "Exception : {e}": "Exception: {e}",
+    "Phase 2/2 — {a}/{b} fichiers": "Phase 2/2 — {a}/{b} files",
+    "  ·  {n} en cours": "  ·  {n} in progress",
+    "Déplacement de {n} fichiers vers DCIM/_old…": "Moving {n} files to DCIM/_old…",
+    "Déplacement : {n} : {e}": "Move: {n}: {e}",
+    "Déplacement vers DCIM/_old : {a}/{b} fichiers  ·  reste ~{eta}…": "Moving to DCIM/_old: {a}/{b} files  ·  ~{eta} left…",
+    "✓ {n} fichiers rangés dans DCIM/_old": "✓ {n} files tucked away in DCIM/_old",
+    "Suppression : {n} : {e}": "Delete: {n}: {e}",
+    "{n} fichiers introuvables sur le support": "{n} files not found on the device",
+    "Impossible de créer DCIM/_old — si c'est un téléphone, déverrouillez son écran puis réessayez": "Could not create DCIM/_old — if this is a phone, unlock its screen and try again",
+    "Déplacement vers DCIM/_old : {a}/{b} fichiers": "Moving to DCIM/_old: {a}/{b} files",
+    "  ·  reste ~{eta}": "  ·  ~{eta} left",
+    "Déplacement : {e}": "Move: {e}",
+    "Ce téléphone ne sait pas déplacer ses fichiers directement": "This phone cannot move its files directly",
+    "Rangement annulé — les photos sont copiées sur le PC ; rien n'a été modifié sur le téléphone": "Tidy-up cancelled — your photos are copied on the PC; nothing was changed on the phone",
+    "Rangement vers _old annulé": "Tidy-up to _old cancelled",
+    "Copie locale introuvable pour {n}": "Local copy not found for {n}",
+    "Copie vers _old : {e}": "Copy to _old: {e}",
+    "Non rangé : {n}": "Not tidied: {n}",
+    "Suppression : {e}": "Delete: {e}",
+    "Dossier « {d} » introuvable — reconnectez le téléphone en mode transfert de fichiers": "Folder “{d}” not found — reconnect the phone in file-transfer mode",
+    "{n} fichiers ignorés (antérieurs au {d})": "{n} files skipped (older than {d})",
+    "Aucun fichier dans « {d} »": "No files in “{d}”",
+    "[Simulation] {n} fichiers → {d}": "[Preview] {n} files → {d}",
+    "Phase 1/2 — MTP → PC : {a}/{b} fichiers…": "Phase 1/2 — MTP → PC: {a}/{b} files…",
+    "Phase 1 : copie {n} fichiers depuis le téléphone…": "Phase 1: copying {n} files from the phone…",
+    "Phase 2/2 — Organisation EXIF : {n} fichiers…": "Phase 2/2 — EXIF sorting: {n} files…",
+    "Phase 2 : organisation EXIF de {n} fichiers…": "Phase 2: EXIF sorting of {n} files…",
+    "Lot : {d}": "Batch: {d}",
+    "Source déjà dans _old — aucun déplacement": "Source already inside _old — nothing to move",
+    "{n} fichiers n'ont pas pu être déplacés — ils restent dans le dossier d'origine": "{n} files could not be moved — they remain in their original folder",
+    "Suppression de {n} fichiers du téléphone…": "Deleting {n} files from the phone…",
+    "Suppression incomplète — des fichiers restent sur le téléphone": "Deletion incomplete — some files remain on the phone",
+    "✓ {n} fichiers supprimés du téléphone": "✓ {n} files deleted from the phone",
+    "{n} fichiers non importés conservés sur le téléphone": "{n} files not imported were kept on the phone",
+    "✓ Terminé": "✓ Done",
+    # Vue d'import
+    "Copier": "Copy",
+    "Copie les fichiers\nsur le disque dur\n(source inchangée)": "Copies the files\nto your hard drive\n(source untouched)",
+    "Copier + Déplacer": "Copy + Move",
+    "Copie, puis range les fichiers\nde la source dans DCIM/_old": "Copies, then tucks the source\nfiles away into DCIM/_old",
+    "Copier + Supprimer": "Copy + Delete",
+    "Copie puis supprime\nles fichiers\nde la source": "Copies, then deletes\nthe files\nfrom the source",
+    "Simulation": "Preview",
+    "Simule la copie\nsans toucher\naux fichiers": "Simulates the copy\nwithout touching\nany file",
+    "Tous les dossiers": "All folders",
+    "ℹ  À propos": "ℹ  About",
+    "⚙  Options": "⚙  Options",
+    "Dossier": "Folder",
+    "Seulement les photos prises depuis le": "Only photos taken since",
+    "Aucun dossier photo trouvé": "No photo folder found",
+    "📂   Parcourir le téléphone…": "📂   Browse the phone…",
+    "Recherche du dossier photos…": "Looking for the photo folder…",
+    "⏳  Analyse en cours…": "⏳  Scanning…",
+    "trouvé": "found", "trouvés": "found",
+    "{c}  Analyse… {n} {noun}": "{c}  Scanning… {n} {noun}",
+    "fichier": "file", "fichiers": "files",
+    "Aucun fichier photo/vidéo": "No photo/video files",
+    "{total} {noun} · {pending} depuis le {d}": "{total} {noun} · {pending} since {d}",
+    "{total} {noun} photos/vidéos": "{total} photo/video {noun}",
+    "aucun fichier": "no files",
+    "{n} fichier": "{n} file", "{n} fichiers": "{n} files",
+    "⚠  Téléphone déconnecté — import interrompu": "⚠  Phone disconnected — import interrupted",
+    "⏳  Arrêt en cours…": "⏳  Stopping…",
+    "Arrêt demandé — fin de l'opération en cours…": "Stop requested — finishing the current operation…",
+    "⏹  Arrêter": "⏹  Stop",
+    "Confirmer la suppression": "Confirm deletion",
+    "Supprimer {n} {noun} de la source après copie ?": "Delete {n} {noun} from the source after copying?",
+    "Les fichiers seront d'abord copiés sur le disque dur, puis supprimés définitivement de la source.\nCette action est irréversible.": "The files will first be copied to your hard drive, then permanently deleted from the source.\nThis cannot be undone.",
+    "Oui": "Yes", "Non": "No",
+    "Démarrage…": "Starting…",
+    "📋  Copier en cours…": "📋  Copying…",
+    "📦  Copier + Déplacer en cours…": "📦  Copy + Move in progress…",
+    "🗑  Copier + Supprimer en cours…": "🗑  Copy + Delete in progress…",
+    "🔬  Simulation en cours…": "🔬  Preview in progress…",
+    "Rangement lent": "Slow tidy-up",
+    "Ce téléphone ne permet pas de déplacer ses fichiers directement.": "This phone does not allow moving its files directly.",
+    "L'application peut quand même ranger les {n} {noun} dans DCIM/_old en les renvoyant depuis le PC, mais cela peut prendre du temps. Gardez l'écran du téléphone déverrouillé pendant l'opération.\n\n•  Continuer : rangement lent, avec progression et temps restant.\n•  Arrêter : vos photos sont déjà copiées sur le PC ; rien n'est modifié sur le téléphone (à vous d'y faire le ménage).": "The app can still tuck the {n} {noun} away into DCIM/_old by sending them back from the PC, but this may take a while. Keep the phone's screen unlocked during the operation.\n\n•  Continue: slow tidy-up, with progress and time remaining.\n•  Stop: your photos are already copied to the PC; nothing is changed on the phone (tidy it up yourself).",
+    "Continuer (lent)": "Continue (slow)",
+    "Arrêter là": "Stop here",
+    "⏹  Import interrompu": "⏹  Import interrupted",
+    "Import terminé — {n} {noun}": "Import finished — {n} {noun}",
+    "erreur": "error", "erreurs": "errors",
+    "✓  Simulation terminée": "✓  Preview finished",
+    "✓  Rien de nouveau à importer": "✓  Nothing new to import",
+    "🎉  Import terminé !": "🎉  Import finished!",
+    "{n} fichiers analysés  ·  {dur}": "{n} files analysed  ·  {dur}",
+    "photo/vidéo importée": "photo/video imported",
+    "photos/vidéos importées": "photos/videos imported",
+    "  ·  {n} déjà présentes": "  ·  {n} already there",
+    "  ·  {n} en erreur": "  ·  {n} failed",
+    "⚠  {n} {noun} en erreur n'ont PAS été supprimés de la source.": "⚠  {n} failed {noun} were NOT deleted from the source.",
+    "📂   Ouvrir le dossier des photos": "📂   Open the photo folder",
+    "Choisir un dossier sur le téléphone": "Choose a folder on the phone",
+    "Où sont vos photos ?": "Where are your photos?",
+    "vide": "empty",
+    "{n} élément": "{n} item", "{n} éléments": "{n} items",
+    "⏳  Lecture du téléphone…": "⏳  Reading the phone…",
+    "Ce dossier ne contient pas de sous-dossier.": "This folder has no subfolders.",
+    "Choisir ce dossier": "Choose this folder",
+    # Tri par date / résumé / onglets
+    "Sélectionner un dossier": "Pick a folder",
+    "◀  Précédent": "◀  Previous",
+    "Suivant  ▶": "Next  ▶",
+    "📁  Parcourir": "📁  Browse",
+    "<b style='font-size:11pt;'>📁 Parcourir</b><br/><br/>Sélectionne un <b>dossier racine</b> à explorer<br/>et affiche les sous-dossiers qu'il contient.<br/><br/><span style='opacity:0.7;'>Structure attendue :</span><br/>&nbsp;&nbsp;racine / <b>année</b> / <b>mois</b><br/><span style='font-size:9pt; opacity:0.55;'>ex&nbsp;: E:\\Photos\\2026\\03&nbsp;Mars</span>": "<b style='font-size:11pt;'>📁 Browse</b><br/><br/>Pick a <b>root folder</b> to explore<br/>and list the subfolders it contains.<br/><br/><span style='opacity:0.7;'>Expected layout:</span><br/>&nbsp;&nbsp;root / <b>year</b> / <b>month</b><br/><span style='font-size:9pt; opacity:0.55;'>e.g.&nbsp;E:\\Photos\\2026\\03&nbsp;March</span>",
+    "Scan en cours…": "Scanning…",
+    "{n} dossier(s) trouvé(s)": "{n} folder(s) found",
+    "Page {a} / {b}": "Page {a} / {b}",
+    "Organisation en cours…": "Sorting in progress…",
+    "{a} / {b} fichiers  —  {pct}%": "{a} / {b} files  —  {pct}%",
+    "✓  TERMINÉ": "✓  DONE",
+    "TOTAL": "TOTAL", "DÉPLACÉS": "MOVED", "IGNORÉS": "SKIPPED", "ERREURS": "ERRORS",
+    "← Retour à la liste": "← Back to the list",
+    "Durée : {s} s": "Duration: {s} s",
+    "Recherche d'une carte SD ou d'un téléphone…": "Looking for an SD card or a phone…",
+    "Recherche d'un téléphone…": "Looking for a phone…",
+    "📂  Trier par date": "📂  Sort by date",
+    "💾  Carte SD": "💾  SD card",
+    "📱  Téléphone": "📱  Phone",
+    # À propos / ExifTool / Ko-fi
+    "☕  Soutenir sur Ko-fi": "☕  Support on Ko-fi",
+    "Fermer": "Close",
+    "ExifTool introuvable": "ExifTool not found",
+    "⬇  Télécharger automatiquement": "⬇  Download automatically",
+    "📁  Sélectionner manuellement": "📁  Pick manually",
+    "Annuler": "Cancel",
+    "Connexion à exiftool.org…": "Connecting to exiftool.org…",
+    "Téléchargement… {n} Ko": "Downloading… {n} KB",
+    "Erreur : {e}": "Error: {e}",
+    "<p>DCIM Sorter trie automatiquement vos photos et vidéos dans des sous-dossiers par <b>jour</b>, en lisant les données <b>EXIF</b> (date de prise de vue réelle).</p><p><b>Fonctionnalités :</b></p><ul><li>Import depuis cartes SD, clés USB et <b>téléphones (MTP)</b></li><li>Lecture EXIF via <b>ExifTool</b> pour une date précise</li><li>Prise en charge des photos <b>RAW</b> (ARW, CR2, CR3…) et vidéos</li><li>Sous-dossiers prioritaires configurables (ex : <i>_Priority</i>)</li><li>40 thèmes visuels · interface 4K / HiDPI</li></ul><p><b>Formats supportés :</b> JPG · PNG · ARW · CR2 · CR3 · MP4 · MOV…</p>": "<p>DCIM Sorter automatically sorts your photos and videos into per-<b>day</b> subfolders by reading <b>EXIF</b> data (the real shooting date).</p><p><b>Features:</b></p><ul><li>Import from SD cards, USB sticks and <b>phones (MTP)</b></li><li>EXIF reading via <b>ExifTool</b> for accurate dates</li><li><b>RAW</b> photos (ARW, CR2, CR3…) and videos supported</li><li>Configurable priority subfolders (e.g. <i>_Priority</i>)</li><li>40 visual themes · 4K / HiDPI interface</li></ul><p><b>Supported formats:</b> JPG · PNG · ARW · CR2 · CR3 · MP4 · MOV…</p>",
+    "<p>Cette section permet d'<b>importer les photos et vidéos</b> depuis une carte SD, une clé USB ou un <b>téléphone branché en MTP</b>, à partir du dossier <b>DCIM</b> — le dossier standard des appareils photo.</p><p><b>Quatre modes disponibles :</b></p><ul><li><b>📋 Copier</b> — copie les fichiers vers le disque dur, la source reste inchangée</li><li><b>📦 Copier + Déplacer</b> — copie, puis range les fichiers de la source dans <code>DCIM/_old</code> (rien n'est supprimé)</li><li><b>🗑 Copier + Supprimer</b> — copie puis efface les fichiers de la source. Seuls les fichiers dont la copie est vérifiée sont supprimés.</li><li><b>🔬 Simulation</b> — simule la copie sans toucher aux fichiers, pour vérifier ce qui serait importé</li></ul><p><b>Structure créée automatiquement :</b><br/><code>destination / année / to_sort / mois / jour</code><br/>Exemple : <code>E:\\Photos\\2026\\to_sort\\03\\27\\IMG_1234.JPG</code></p><p><b>Date utilisée :</b> données EXIF (date de prise de vue réelle) via ExifTool, sinon date du fichier.</p><p><b>Doublons :</b> un fichier déjà importé (même nom, même taille) est reconnu et ignoré ; en cas de conflit de nom, un suffixe <code>_2</code>, <code>_3</code>… est ajouté.</p>": "<p>This section <b>imports photos and videos</b> from an SD card, a USB stick or a <b>phone connected over MTP</b>, starting from the <b>DCIM</b> folder — the standard camera folder.</p><p><b>Four modes:</b></p><ul><li><b>📋 Copy</b> — copies files to your hard drive, the source is untouched</li><li><b>📦 Copy + Move</b> — copies, then tucks the source files away into <code>DCIM/_old</code> (nothing is deleted)</li><li><b>🗑 Copy + Delete</b> — copies then deletes the files from the source. Only files whose copy is verified get deleted.</li><li><b>🔬 Preview</b> — simulates the copy without touching any file, to check what would be imported</li></ul><p><b>Layout created automatically:</b><br/><code>destination / year / to_sort / month / day</code><br/>Example: <code>E:\\Photos\\2026\\to_sort\\03\\27\\IMG_1234.JPG</code></p><p><b>Date used:</b> EXIF data (the real shooting date) via ExifTool, otherwise the file date.</p><p><b>Duplicates:</b> a file already imported (same name, same size) is recognised and skipped; on a name clash a <code>_2</code>, <code>_3</code>… suffix is added.</p>",
+    # Options
+    "Langue / Language :": "Language:",
+    "Dossier racine des photos :": "Photo library root folder:",
+    "Sous-dossiers prioritaires :": "Priority subfolders:",
+    "Nom du sous-dossier…": "Subfolder name…",
+    "Ajouter": "Add", "Supprimer": "Delete",
+    "ExifTool :": "ExifTool:",
+    "Laisser « exiftool.exe » pour utiliser la version du PATH": "Leave “exiftool.exe” to use the PATH version",
+    "Formats de fichiers :": "File formats:",
+    "Extension (ex: dng, heic, nef…)": "Extension (e.g. dng, heic, nef…)",
+    "Les formats 🔒 sont intégrés et ne peuvent pas être supprimés.": "🔒 formats are built-in and cannot be removed.",
+    "Thème :": "Theme:",
+    "Thème précédent": "Previous theme", "Thème suivant": "Next theme",
+    "⚙  Général": "⚙  General",
+    "Dossier de destination :": "Destination folder:",
+    "Structure créée automatiquement :\ndestination / année / to_sort / mois / jour": "Layout created automatically:\ndestination / year / to_sort / month / day",
+    "Timeout scan source (s) :": "Source scan timeout (s):",
+    "Threads de copie parallèle :": "Parallel copy threads:",
+    "Valeur recommandée sur cette machine : {n}.\nRéduire à 1–2 sur une machine peu puissante ou avec un disque dur rotatif.": "Recommended value on this machine: {n}.\nLower to 1–2 on a weak machine or a spinning hard drive.",
+    "Notification Windows à la fin de l'import": "Windows notification when the import finishes",
+    "Son à la fin de l'import": "Sound when the import finishes",
+    "🔌  Import USB": "🔌  USB import",
+    "Enregistrer": "Save",
+    "Dossier racine": "Root folder",
+    "Destination import USB": "USB import destination",
+    "Sélectionner ExifTool": "Pick ExifTool",
+    "Exécutables (*.exe);;Tous (*.*)": "Executables (*.exe);;All (*.*)",
+    "La nouvelle langue sera appliquée au prochain démarrage de l'application.": "The new language will be applied the next time you start the application.",
+    # __EN_MORE__
+}
+
+
+def get_notify_end() -> bool:
+    return _s().value("notify_end", "true") in (True, "true", "1")
+
+
+def set_notify_end(v: bool):
+    _s().setValue("notify_end", "true" if v else "false")
+
+
+def get_sound_end() -> bool:
+    return _s().value("sound_end", "true") in (True, "true", "1")
+
+
+def set_sound_end(v: bool):
+    _s().setValue("sound_end", "true" if v else "false")
+
+
 def get_mtp_move_support(device: str) -> str:
     """'yes' / 'no' / '' (inconnu) — appris lors du premier Copier + Déplacer."""
     return _s().value(f"mtp_move/{device}", "")
@@ -1165,7 +1381,7 @@ class OrganiseWorker(QThread):
                     date = datetime.fromtimestamp(f.stat().st_ctime)
 
             if not date:
-                self.log_entry.emit('skip', f"Pas de date : {f.name}")
+                self.log_entry.emit('skip', L("Pas de date : {n}").format(n=f.name))
                 skipped += 1
                 continue
 
@@ -1174,15 +1390,15 @@ class OrganiseWorker(QThread):
             try:
                 day_dir.mkdir(exist_ok=True)
                 if new_dir:
-                    self.log_entry.emit('new', f"Dossier créé : {date.day:02d}")
+                    self.log_entry.emit('new', L("Dossier créé : {d}").format(d=f"{date.day:02d}"))
             except Exception as e:
-                self.log_entry.emit('error', f"Création dossier : {e}")
+                self.log_entry.emit('error', L("Création dossier : {e}").format(e=e))
                 errors += 1
                 continue
 
             dest = day_dir / f.name
             if dest.exists():
-                self.log_entry.emit('skip', f"Existe déjà : {f.name}")
+                self.log_entry.emit('skip', L("Existe déjà : {n}").format(n=f.name))
                 skipped += 1
             else:
                 try:
@@ -1263,7 +1479,7 @@ class _ExiftoolDownloadDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("ExifTool introuvable")
+        self.setWindowTitle(L("ExifTool introuvable"))
         self.setMinimumWidth(480)
         lay = QVBoxLayout(self)
         lay.setSpacing(12)
@@ -1285,9 +1501,9 @@ class _ExiftoolDownloadDialog(QDialog):
         lay.addWidget(self._status)
 
         btn_row = QHBoxLayout()
-        self._btn_dl  = QPushButton("⬇  Télécharger automatiquement")
-        btn_manual    = QPushButton("📁  Sélectionner manuellement")
-        btn_cancel    = QPushButton("Annuler")
+        self._btn_dl  = QPushButton(L("⬇  Télécharger automatiquement"))
+        btn_manual    = QPushButton(L("📁  Sélectionner manuellement"))
+        btn_cancel    = QPushButton(L("Annuler"))
         btn_row.addWidget(self._btn_dl)
         btn_row.addWidget(btn_manual)
         btn_row.addWidget(btn_cancel)
@@ -1302,7 +1518,7 @@ class _ExiftoolDownloadDialog(QDialog):
         self._btn_dl.setEnabled(False)
         self._prog.setVisible(True)
         self._prog.setRange(0, 0)   # indéterminé tant qu'on n'a pas le total
-        self._status.setText("Connexion à exiftool.org…")
+        self._status.setText(L("Connexion à exiftool.org…"))
         self._worker = _ExiftoolDownloadWorker()
         self._worker.progress.connect(self._on_progress)
         self._worker.done.connect(self._on_done)
@@ -1316,7 +1532,7 @@ class _ExiftoolDownloadDialog(QDialog):
             self._status.setText(
                 f"Téléchargement… {downloaded // 1024} Ko / {total // 1024} Ko")
         else:
-            self._status.setText(f"Téléchargement… {downloaded // 1024} Ko")
+            self._status.setText(L("Téléchargement… {n} Ko").format(n=downloaded // 1024))
 
     def _on_done(self, path: str):
         set_exif(path)
@@ -1325,7 +1541,7 @@ class _ExiftoolDownloadDialog(QDialog):
 
     def _on_error(self, msg: str):
         self._prog.setVisible(False)
-        self._status.setText(f"Erreur : {msg}")
+        self._status.setText(L("Erreur : {e}").format(e=msg))
         self._btn_dl.setEnabled(True)
 
     def _manual(self):
@@ -1388,7 +1604,8 @@ class UsbCopyWorker(QThread):
                 break
             chunk = photo_files[start:start + self._EXIF_CHUNK]
             self.batch_info.emit(
-                f"Phase 1/2 — Lecture EXIF… {ci + 1}/{total_chunks}")
+                L("Phase 1/2 — Lecture EXIF… {a}/{b}").format(
+                    a=ci + 1, b=total_chunks))
             try:
                 r = subprocess.run(
                     [self.exif_cmd, '-json', '-d', '%Y-%m-%d %H:%M:%S',
@@ -1467,9 +1684,9 @@ class UsbCopyWorker(QThread):
         total_bytes = sum(file_sizes.values())
 
         # Phase 1 : lecture EXIF batch
-        self.batch_info.emit("Phase 1/2 — Lecture EXIF…")
+        self.batch_info.emit(L("Phase 1/2 — Lecture EXIF…"))
         dates = self._batch_get_dates(files)
-        self.batch_info.emit("Phase 2/2 — Copie des fichiers…")
+        self.batch_info.emit(L("Phase 2/2 — Copie des fichiers…"))
 
         copied       = 0
         skipped      = 0
@@ -1485,7 +1702,7 @@ class UsbCopyWorker(QThread):
                 return 'skip', f"Annulé : {f.name}", None, None, 0
             date = dates.get(str(f.resolve()))
             if not date:
-                return 'skip', f"Pas de date : {f.name}", None, None, 0
+                return 'skip', L("Pas de date : {n}").format(n=f.name), None, None, 0
 
             label = (f"{date.year}/to_sort/"
                      f"{date.month:02d}/{date.day:02d}")
@@ -1493,7 +1710,7 @@ class UsbCopyWorker(QThread):
                        / f"{date.month:02d}" / f"{date.day:02d}"
 
             if self.mode == self.MODE_DRY_RUN:
-                return 'move', f"[Simulation] {f.name}  →  {label}", None, None, fsize
+                return 'move', L("[Simulation] {n}  →  {d}").format(n=f.name, d=label), None, None, fsize
 
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
@@ -1501,7 +1718,7 @@ class UsbCopyWorker(QThread):
                 try:
                     if plain.exists() and plain.stat().st_size == f.stat().st_size:
                         # copie déjà vérifiée : éligible au rangement/suppression
-                        return 'skip', f"Déjà présent : {f.name}", f, None, fsize
+                        return 'skip', L("Déjà présent : {n}").format(n=f.name), f, None, fsize
                 except Exception:
                     pass
                 with dest_lock:
@@ -1520,7 +1737,7 @@ class UsbCopyWorker(QThread):
                 try:
                     kind, msg, src_path, thumb, fsize = fut.result()
                 except Exception as e:
-                    self.log_entry.emit('error', f"Exception : {e}")
+                    self.log_entry.emit('error', L("Exception : {e}").format(e=e))
                     errors += 1
                     self.progress.emit(bytes_done, total_bytes)
                     continue
@@ -1548,8 +1765,8 @@ class UsbCopyWorker(QThread):
                 self.progress.emit(bytes_done, total_bytes)
                 n_active = min(n_workers, total - done_count)
                 self.batch_info.emit(
-                    f"Phase 2/2 — {done_count}/{total} fichiers"
-                    + (f"  ·  {n_active} en cours" if n_active > 0 else "")
+                    L("Phase 2/2 — {a}/{b} fichiers").format(a=done_count, b=total)
+                    + (L("  ·  {n} en cours").format(n=n_active) if n_active > 0 else "")
                 )
 
         # Déplacement des sources vers DCIM/_old (mode copy_move) : les
@@ -1560,7 +1777,7 @@ class UsbCopyWorker(QThread):
             old_dir = root / "_old"
             n_move  = len(copied_paths)
             self.log_entry.emit('new',
-                f"Déplacement de {n_move} fichiers vers DCIM/_old…")
+                L("Déplacement de {n} fichiers vers DCIM/_old…").format(n=n_move))
             moved = 0
             t_move = _time.time()
             self.progress.emit(0, n_move)
@@ -1578,15 +1795,15 @@ class UsbCopyWorker(QThread):
                     shutil.move(str(src), str(dest))
                     moved += 1
                 except Exception as e:
-                    self.log_entry.emit('error', f"Déplacement : {src.name} : {e}")
+                    self.log_entry.emit('error', L("Déplacement : {n} : {e}").format(n=src.name, e=e))
                 if moved and (idx % 10 == 0 or idx == n_move - 1):
                     eta = (_time.time() - t_move) / (idx + 1) * (n_move - idx - 1)
                     self.batch_info.emit(
-                        f"Déplacement vers DCIM/_old : {idx + 1}/{n_move} "
-                        f"fichiers  ·  reste ~{_fmt_eta(eta)}…")
+                        L("Déplacement vers DCIM/_old : {a}/{b} fichiers  ·  reste ~{eta}…").format(
+                            a=idx + 1, b=n_move, eta=_fmt_eta(eta)))
                     self.progress.emit(idx + 1, n_move)
             self.progress.emit(moved, n_move)
-            self.log_entry.emit('new', f"✓ {moved} fichiers rangés dans DCIM/_old")
+            self.log_entry.emit('new', L("✓ {n} fichiers rangés dans DCIM/_old").format(n=moved))
 
         # Suppression source si mode copy_delete et aucune erreur.
         # On supprime même si stoppé en cours : les fichiers copiés sont sur disque.
@@ -1595,7 +1812,7 @@ class UsbCopyWorker(QThread):
                 try:
                     src.unlink()
                 except Exception as e:
-                    self.log_entry.emit('error', f"Suppression : {src.name} : {e}")
+                    self.log_entry.emit('error', L("Suppression : {n} : {e}").format(n=src.name, e=e))
             for dirpath, _dirs, _files in os.walk(str(dcim), topdown=False):
                 if dirpath == str(dcim):
                     continue
@@ -1764,7 +1981,7 @@ class MtpCopyWorker(QThread):
         missing = len(names) - len(items)
         if missing:
             self.log_entry.emit('error',
-                f"{missing} fichiers introuvables sur le support")
+                L("{n} fichiers introuvables sur le support").format(n=missing))
         if not items:
             return 0
 
@@ -1772,7 +1989,8 @@ class MtpCopyWorker(QThread):
         old_item = _mtp_ensure_child_folder(self._dcim_root_parts(), "_old")
         if old_item is None:
             self.log_entry.emit('error',
-                "Impossible de créer DCIM/_old sur le support")
+                L("Impossible de créer DCIM/_old — si c'est un téléphone, "
+                  "déverrouillez son écran puis réessayez"))
             return 0
 
         def _old_names() -> set[str]:
@@ -1803,10 +2021,11 @@ class MtpCopyWorker(QThread):
 
         def _tick():
             self.progress.emit(moved, total)
-            txt = f"Déplacement vers DCIM/_old : {moved}/{total} fichiers"
+            txt = L("Déplacement vers DCIM/_old : {a}/{b} fichiers").format(
+                a=moved, b=total)
             if 0 < moved < total:
                 eta = (_time.time() - t0) / moved * (total - moved)
-                txt += f"  ·  reste ~{_fmt_eta(eta)}"
+                txt += L("  ·  reste ~{eta}").format(eta=_fmt_eta(eta))
             self.batch_info.emit(txt + "…")
 
         _tick()
@@ -1845,7 +2064,7 @@ class MtpCopyWorker(QThread):
                                     final[it.Name], None)
                     fo.PerformOperations()
                 except Exception as e:
-                    self.log_entry.emit('error', f"Déplacement : {e}")
+                    self.log_entry.emit('error', L("Déplacement : {e}").format(e=e))
                 moved += len(chunk)
                 _tick()
             # Bilan réel : ce qui reste dans le dossier source fait foi
@@ -1855,22 +2074,22 @@ class MtpCopyWorker(QThread):
         # ── Repli : envoi de la copie PC vers _old, puis suppression ───────
         # C'est lent (les fichiers repassent par l'USB) : on demande d'abord.
         self.log_entry.emit('skip',
-            "Ce téléphone ne sait pas déplacer ses fichiers directement")
+            L("Ce téléphone ne sait pas déplacer ses fichiers directement"))
         self._slow_move_reply.clear()
         self.ask_slow_move.emit(total)
         self._slow_move_reply.wait()
         if self._stop or not self._slow_move_ok:
             self.log_entry.emit('skip',
-                "Rangement annulé — les photos sont copiées sur le PC ; "
-                "rien n'a été modifié sur le téléphone")
-            self.batch_info.emit("Rangement vers _old annulé")
+                L("Rangement annulé — les photos sont copiées sur le PC ; "
+                  "rien n'a été modifié sur le téléphone"))
+            self.batch_info.emit(L("Rangement vers _old annulé"))
             return 0
         sendable = [it for it in items
                     if it.Name in local_map and local_map[it.Name].exists()]
         for it in items:
             if it not in sendable:
                 self.log_entry.emit('error',
-                    f"Copie locale introuvable pour {it.Name}")
+                    L("Copie locale introuvable pour {n}").format(n=it.Name))
 
         for i in range(0, len(sendable), self._MOVE_CHUNK):
             if self._stop:
@@ -1885,13 +2104,13 @@ class MtpCopyWorker(QThread):
                     fo.CopyItem(src_local, dst, final[it.Name], None)
                 fo.PerformOperations()
             except Exception as e:
-                self.log_entry.emit('error', f"Copie vers _old : {e}")
+                self.log_entry.emit('error', L("Copie vers _old : {e}").format(e=e))
                 continue
             in_old = _old_names()
             deletable = [it for it in chunk if final[it.Name] in in_old]
             for it in chunk:
                 if it not in deletable:
-                    self.log_entry.emit('error', f"Non rangé : {it.Name}")
+                    self.log_entry.emit('error', L("Non rangé : {n}").format(n=it.Name))
             if deletable:
                 try:
                     fo2 = _mtp_new_fileop()
@@ -1900,7 +2119,7 @@ class MtpCopyWorker(QThread):
                     fo2.PerformOperations()
                     moved += len(deletable)
                 except Exception as e:
-                    self.log_entry.emit('error', f"Suppression : {e}")
+                    self.log_entry.emit('error', L("Suppression : {e}").format(e=e))
             _tick()
         return moved
 
@@ -1971,8 +2190,8 @@ class MtpCopyWorker(QThread):
         cam_item = _mtp_resolve_path(self.path_parts)
         if cam_item is None:
             self.log_entry.emit('error',
-                f"Dossier « {self.folder_label} » introuvable — "
-                "reconnectez le téléphone en mode transfert de fichiers")
+                L("Dossier « {d} » introuvable — reconnectez le téléphone "
+                  "en mode transfert de fichiers").format(d=self.folder_label))
             self.done.emit(0, 0, 1, 0.0)
             return
 
@@ -1992,10 +2211,10 @@ class MtpCopyWorker(QThread):
 
         if excluded:
             self.log_entry.emit('skip',
-                f"{excluded} fichiers ignorés (antérieurs au "
-                f"{self.date_from:%d/%m/%Y})")
+                L("{n} fichiers ignorés (antérieurs au {d})").format(
+                    n=excluded, d=f"{self.date_from:%d/%m/%Y}"))
         if total_mtp == 0:
-            self.log_entry.emit('skip', f"Aucun fichier dans « {self.folder_label} »")
+            self.log_entry.emit('skip', L("Aucun fichier dans « {d} »").format(d=self.folder_label))
             self.done.emit(0, 0, 0, 0.0)
             return
 
@@ -2003,7 +2222,7 @@ class MtpCopyWorker(QThread):
         if self.mode == self.MODE_DRY_RUN:
             sim = to_copy
             self.log_entry.emit('new',
-                f"[Simulation] {len(sim)} fichiers → {self.target}")
+                L("[Simulation] {n} fichiers → {d}").format(n=len(sim), d=self.target))
             for idx, item in enumerate(sim):
                 if self._stop:
                     break
@@ -2020,9 +2239,9 @@ class MtpCopyWorker(QThread):
         temp_dir = Path(self.target) / "._mtp_import_temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        self.batch_info.emit(f"Phase 1/2 — MTP → PC : 0/{total_mtp} fichiers…")
+        self.batch_info.emit(L("Phase 1/2 — MTP → PC : {a}/{b} fichiers…").format(a=0, b=total_mtp))
         self.log_entry.emit('new',
-            f"Phase 1 : copie {total_mtp} fichiers depuis le téléphone…")
+            L("Phase 1 : copie {n} fichiers depuis le téléphone…").format(n=total_mtp))
 
         # PerformOperations bloque le thread appelant — thread dédié.
         # IFileOperation en mode silencieux : aucune fenêtre de progression
@@ -2070,7 +2289,7 @@ class MtpCopyWorker(QThread):
             n = sum(1 for f in temp_dir.iterdir()
                     if f.is_file() and f.suffix.lower() in all_ext)
             self.progress.emit(n, total_mtp)
-            self.batch_info.emit(f"Phase 1/2 — MTP → PC : {n}/{total_mtp} fichiers…")
+            self.batch_info.emit(L("Phase 1/2 — MTP → PC : {a}/{b} fichiers…").format(a=n, b=total_mtp))
             time.sleep(0.4)
             waited += 0.4
         copy_done.wait(timeout=10)
@@ -2081,8 +2300,8 @@ class MtpCopyWorker(QThread):
         # ── Phase 2 : organisation EXIF ───────────────────────────────────────
         dest_base   = Path(self.target)
         n_files     = len(temp_files)
-        self.batch_info.emit(f"Phase 2/2 — Organisation EXIF : {n_files} fichiers…")
-        self.log_entry.emit('new', f"Phase 2 : organisation EXIF de {n_files} fichiers…")
+        self.batch_info.emit(L("Phase 2/2 — Organisation EXIF : {n} fichiers…").format(n=n_files))
+        self.log_entry.emit('new', L("Phase 2 : organisation EXIF de {n} fichiers…").format(n=n_files))
         self.progress.emit(0, n_files)
 
         copied = skipped = errors = 0
@@ -2114,7 +2333,7 @@ class MtpCopyWorker(QThread):
 
             if dest_str != current_batch:
                 current_batch = dest_str
-                self.batch_info.emit(f"Lot : {dest_str}")
+                self.batch_info.emit(L("Lot : {d}").format(d=dest_str))
 
             plain = dest_dir / f.name
             try:
@@ -2123,7 +2342,7 @@ class MtpCopyWorker(QThread):
             except Exception:
                 already = False
             if already:
-                self.log_entry.emit('skip', f"Déjà présent : {f.name}")
+                self.log_entry.emit('skip', L("Déjà présent : {n}").format(n=f.name))
                 f.unlink(missing_ok=True)
                 imported_ok.add(f.name)
                 imported_dest[f.name] = plain
@@ -2158,21 +2377,22 @@ class MtpCopyWorker(QThread):
             src_in_old = any(pp.lower() == "_old" for pp in self.path_parts)
             if src_in_old:
                 self.log_entry.emit('skip',
-                    "Source déjà dans _old — aucun déplacement")
+                    L("Source déjà dans _old — aucun déplacement"))
             elif imported_ok:
                 self.log_entry.emit('new',
-                    f"Déplacement de {len(imported_ok)} fichiers vers DCIM/_old…")
+                    L("Déplacement de {n} fichiers vers DCIM/_old…").format(
+                        n=len(imported_ok)))
                 try:
                     moved = self._move_items_to_old(set(imported_ok),
                                                     imported_dest)
                     if moved < len(imported_ok):
                         self.log_entry.emit('error',
-                            f"{len(imported_ok) - moved} fichiers n'ont pas "
-                            "pu être déplacés — ils restent dans le dossier "
-                            "d'origine")
+                            L("{n} fichiers n'ont pas pu être déplacés — ils "
+                              "restent dans le dossier d'origine").format(
+                                n=len(imported_ok) - moved))
                     if moved:
                         self.log_entry.emit('new',
-                            f"✓ {moved} fichiers rangés dans DCIM/_old")
+                            L("✓ {n} fichiers rangés dans DCIM/_old").format(n=moved))
                 except Exception as e:
                     self.log_entry.emit('error', f"Déplacement : {e}")
 
@@ -2183,10 +2403,10 @@ class MtpCopyWorker(QThread):
         if self.mode == self.MODE_COPY_DELETE and not self._stop:
             to_delete = self._fresh_items(set(imported_ok))
             if to_delete:
-                self.batch_info.emit(
-                    f"Suppression de {len(to_delete)} fichiers du téléphone…")
-                self.log_entry.emit('new',
-                    f"Suppression de {len(to_delete)} fichiers du téléphone…")
+                _msg = L("Suppression de {n} fichiers du téléphone…").format(
+                    n=len(to_delete))
+                self.batch_info.emit(_msg)
+                self.log_entry.emit('new', _msg)
                 try:
                     fo = _mtp_new_fileop()
                     for it in to_delete:
@@ -2194,20 +2414,21 @@ class MtpCopyWorker(QThread):
                     fo.PerformOperations()
                     if fo.GetAnyOperationsAborted():
                         self.log_entry.emit('error',
-                            "Suppression incomplète — des fichiers restent "
-                            "sur le téléphone")
+                            L("Suppression incomplète — des fichiers restent "
+                              "sur le téléphone"))
                     else:
                         self.log_entry.emit('new',
-                            f"✓ {len(to_delete)} fichiers supprimés du téléphone")
+                            L("✓ {n} fichiers supprimés du téléphone").format(
+                                n=len(to_delete)))
                 except Exception as e:
                     self.log_entry.emit('error', f"Suppression : {e}")
             not_deleted = total_mtp - len(to_delete)
             if not_deleted:
                 self.log_entry.emit('skip',
-                    f"{not_deleted} fichiers non importés conservés "
-                    "sur le téléphone")
+                    L("{n} fichiers non importés conservés sur le téléphone").format(
+                        n=not_deleted))
 
-        self.batch_info.emit("✓ Terminé")
+        self.batch_info.emit(L("✓ Terminé"))
         elapsed = (datetime.now() - t0).total_seconds()
         self.done.emit(copied, skipped, errors, elapsed)
 
@@ -2292,7 +2513,7 @@ class _GhostTab(QWidget):
         self._spin_timer = QTimer(self)
         self._spin_timer.setInterval(40)
         self._spin_timer.timeout.connect(self._tick)
-        self.set_text("Recherche d'une carte SD ou d'un téléphone…")
+        self.set_text(L("Recherche d'une carte SD ou d'un téléphone…"))
         theme_sig.changed.connect(self.update)
 
     def set_text(self, text: str):
@@ -2891,17 +3112,17 @@ class FolderListView(QWidget):
         # Header : titre à gauche — À propos / Options en haut à droite,
         # compteur de dossiers juste en dessous
         hdr = QHBoxLayout()
-        self._title = QLabel("Sélectionner un dossier")
+        self._title = QLabel(L("Sélectionner un dossier"))
         hdr.addWidget(self._title)
         hdr.addStretch()
         right_col = QVBoxLayout()
         right_col.setSpacing(4)
         btns = QHBoxLayout()
         btns.setSpacing(8)
-        self._btn_about = GradientButton("ℹ  À propos")
+        self._btn_about = GradientButton(L("ℹ  À propos"))
         self._btn_about.setFixedWidth(126)
         self._btn_about.clicked.connect(self.about_opened)
-        self._btn_options = GradientButton("⚙  Options")
+        self._btn_options = GradientButton(L("⚙  Options"))
         self._btn_options.setFixedWidth(126)
         self._btn_options.clicked.connect(self.options_opened)
         btns.addWidget(self._btn_about)
@@ -2936,12 +3157,12 @@ class FolderListView(QWidget):
 
         # Bottom bar
         bot = QHBoxLayout()
-        self._btn_prev = SmallButton("◀  Précédent")
+        self._btn_prev = SmallButton(L("◀  Précédent"))
         self._btn_prev.setFixedWidth(130)
         self._btn_prev.clicked.connect(self._go_prev)
         self._page_lbl = QLabel()
         self._page_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._btn_next = SmallButton("Suivant  ▶")
+        self._btn_next = SmallButton(L("Suivant  ▶"))
         self._btn_next.setFixedWidth(130)
         self._btn_next.clicked.connect(self._go_next)
 
@@ -2951,16 +3172,16 @@ class FolderListView(QWidget):
         bot.addWidget(self._btn_next)
         bot.addStretch(1)
 
-        self._btn_browse  = GradientButton("📁  Parcourir")
+        self._btn_browse  = GradientButton(L("📁  Parcourir"))
         self._btn_browse.setFixedWidth(148)
         self._btn_browse.setToolTip(
-            "<b style='font-size:11pt;'>📁 Parcourir</b><br/><br/>"
-            "Sélectionne un <b>dossier racine</b> à explorer<br/>"
-            "et affiche les sous-dossiers qu'il contient.<br/><br/>"
-            "<span style='opacity:0.7;'>Structure attendue :</span><br/>"
-            "&nbsp;&nbsp;racine / <b>année</b> / <b>mois</b><br/>"
-            "<span style='font-size:9pt; opacity:0.55;'>"
-            "ex&nbsp;: E:\\Photos\\2026\\03&nbsp;Mars</span>")
+            L("<b style='font-size:11pt;'>📁 Parcourir</b><br/><br/>"
+              "Sélectionne un <b>dossier racine</b> à explorer<br/>"
+              "et affiche les sous-dossiers qu'il contient.<br/><br/>"
+              "<span style='opacity:0.7;'>Structure attendue :</span><br/>"
+              "&nbsp;&nbsp;racine / <b>année</b> / <b>mois</b><br/>"
+              "<span style='font-size:9pt; opacity:0.55;'>"
+              "ex&nbsp;: E:\\Photos\\2026\\03&nbsp;Mars</span>"))
         self._btn_browse.clicked.connect(self.browse_requested)
         self._btn_browse.installEventFilter(_instant_tip)
 
@@ -2983,7 +3204,7 @@ class FolderListView(QWidget):
         self._folders = []
         self._page    = 0
         self._clear_cards()
-        self._status.setText("Scan en cours…")
+        self._status.setText(L("Scan en cours…"))
         if self._worker and self._worker.isRunning():
             self._worker.stop()
             self._worker.wait(800)
@@ -3007,7 +3228,7 @@ class FolderListView(QWidget):
         self._refresh_page()
 
     def _on_scan_done(self):
-        self._status.setText(f"{len(self._visible())} dossier(s) trouvé(s)")
+        self._status.setText(L("{n} dossier(s) trouvé(s)").format(n=len(self._visible())))
         self._refresh_page()
 
     def _refresh_page(self):
@@ -3048,7 +3269,7 @@ class FolderListView(QWidget):
             card._fade_anim = anim
             self._cards_lay.addWidget(card)
 
-        self._page_lbl.setText(f"Page {self._page + 1} / {total}")
+        self._page_lbl.setText(L("Page {a} / {b}").format(a=self._page + 1, b=total))
         self._btn_prev.setEnabled(self._page > 0)
         self._btn_next.setEnabled(self._page < total - 1)
 
@@ -3080,7 +3301,7 @@ class ProcessView(QWidget):
         lay.setContentsMargins(28, 20, 28, 20)
         lay.setSpacing(14)
 
-        self._title = QLabel("Organisation en cours…")
+        self._title = QLabel(L("Organisation en cours…"))
         lay.addWidget(self._title)
 
         self._path_lbl = QLabel()
@@ -3092,7 +3313,7 @@ class ProcessView(QWidget):
         p_lay.setContentsMargins(18, 14, 18, 14)
         self._bar = AnimatedProgressBar()
         p_lay.addWidget(self._bar)
-        self._prog_lbl = QLabel("Démarrage…")
+        self._prog_lbl = QLabel(L("Démarrage…"))
         self._prog_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         p_lay.addWidget(self._prog_lbl)
         lay.addWidget(prog_panel)
@@ -3126,7 +3347,7 @@ class ProcessView(QWidget):
         self._path_lbl.setText(folder_data['path'])
         self._log.clear()
         self._bar.set_progress(0, 1)
-        self._prog_lbl.setText("Démarrage…")
+        self._prog_lbl.setText(L("Démarrage…"))
 
         self._worker = OrganiseWorker(folder_data['path'], exif)
         self._worker.log_entry.connect(self._on_log)
@@ -3140,7 +3361,8 @@ class ProcessView(QWidget):
     def _on_progress(self, cur: int, total: int):
         self._bar.set_progress(cur, total)
         pct = int(cur / total * 100) if total else 0
-        self._prog_lbl.setText(f"{cur} / {total} fichiers  —  {pct}%")
+        self._prog_lbl.setText(L("{a} / {b} fichiers  —  {pct}%").format(
+            a=cur, b=total, pct=pct))
 
 
 # ── Summary View ───────────────────────────────────────────────────────────
@@ -3159,17 +3381,17 @@ class SummaryView(QWidget):
         lay.setSpacing(28)
         lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._done_lbl = QLabel("✓  TERMINÉ")
+        self._done_lbl = QLabel(L("✓  TERMINÉ"))
         self._done_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._done_lbl)
 
         row = QHBoxLayout()
         row.setSpacing(14)
         row.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._c_total   = StatCard("TOTAL",    'text')
-        self._c_moved   = StatCard("DÉPLACÉS", 'a1')
-        self._c_skipped = StatCard("IGNORÉS",  'warn')
-        self._c_errors  = StatCard("ERREURS",  'err')
+        self._c_total   = StatCard(L("TOTAL"),    'text')
+        self._c_moved   = StatCard(L("DÉPLACÉS"), 'a1')
+        self._c_skipped = StatCard(L("IGNORÉS"),  'warn')
+        self._c_errors  = StatCard(L("ERREURS"),  'err')
         for c in [self._c_total, self._c_moved, self._c_skipped, self._c_errors]:
             row.addWidget(c)
         lay.addLayout(row)
@@ -3178,7 +3400,7 @@ class SummaryView(QWidget):
         self._dur_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._dur_lbl)
 
-        btn_back = GradientButton("← Retour à la liste")
+        btn_back = GradientButton(L("← Retour à la liste"))
         btn_back.setFixedWidth(210)
         btn_back.clicked.connect(self.back)
         brow = QHBoxLayout()
@@ -3200,7 +3422,7 @@ class SummaryView(QWidget):
         for card, val in [(self._c_total, total), (self._c_moved, moved),
                           (self._c_skipped, skipped), (self._c_errors, errors)]:
             card.animate_to(val)
-        self._dur_lbl.setText(f"Durée : {elapsed:.2f} s")
+        self._dur_lbl.setText(L("Durée : {s} s").format(s=f"{elapsed:.2f}"))
 
         eff  = QGraphicsOpacityEffect(self._done_lbl)
         eff.setOpacity(0)
@@ -3427,8 +3649,9 @@ class _MtpFolderRow(QWidget):
         name_lbl = QLabel(name)
         name_lbl.setStyleSheet(
             f"font-size: 11pt; color: {t['text']}; background: transparent;")
-        count_lbl = QLabel("vide" if items == 0
-                           else f"{items} élément" + ("s" if items > 1 else ""))
+        count_lbl = QLabel(L("vide") if items == 0
+                           else (L("{n} élément").format(n=items) if items == 1
+                                 else L("{n} éléments").format(n=items)))
         count_lbl.setStyleSheet(
             f"font-size: 9pt; color: {t['dim']}; background: transparent;")
         chev = QLabel("›")
@@ -3453,7 +3676,7 @@ class MtpFolderDialog(QDialog):
         self._chosen: list[str] | None = None
         self._media  = 0
         self._worker: _MtpBrowseWorker | None = None
-        self.setWindowTitle("Choisir un dossier sur le téléphone")
+        self.setWindowTitle(L("Choisir un dossier sur le téléphone"))
         self.setMinimumSize(620, 520)
         self._build_style()
         self._setup_ui()
@@ -3495,7 +3718,7 @@ class MtpFolderDialog(QDialog):
         lay.setContentsMargins(26, 22, 26, 20)
         lay.setSpacing(14)
 
-        title = QLabel("Où sont vos photos ?")
+        title = QLabel(L("Où sont vos photos ?"))
         title.setStyleSheet(
             f"font-size: 16pt; font-weight: bold; color: {t['a1']};")
         subtitle = QLabel(
@@ -3541,7 +3764,7 @@ class MtpFolderDialog(QDialog):
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.clicked.connect(self.reject)
         foot.addWidget(btn_cancel)
-        self._btn_ok = GradientButton("Choisir ce dossier")
+        self._btn_ok = GradientButton(L("Choisir ce dossier"))
         self._btn_ok.setMinimumWidth(190)
         self._btn_ok.clicked.connect(self._accept_current)
         foot.addWidget(self._btn_ok)
@@ -3551,7 +3774,7 @@ class MtpFolderDialog(QDialog):
     def _load(self, parts: list[str]):
         self._parts = list(parts)
         self._list.clear()
-        self._empty_lbl.setText("⏳  Lecture du téléphone…")
+        self._empty_lbl.setText(L("⏳  Lecture du téléphone…"))
         self._info_lbl.setText("")
         self._btn_back.setEnabled(len(self._parts) > 1)
         self._crumb_lbl.setText("📱  " + (_mtp_path_label(self._parts)
@@ -3579,7 +3802,7 @@ class MtpFolderDialog(QDialog):
             self._empty_lbl.setVisible(False)
         else:
             self._empty_lbl.setVisible(True)
-            self._empty_lbl.setText("Ce dossier ne contient pas de sous-dossier.")
+            self._empty_lbl.setText(L("Ce dossier ne contient pas de sous-dossier."))
         noun = "photo/vidéo" if media == 1 else "photos/vidéos"
         self._info_lbl.setText(
             f"📷  {media} {noun} dans ce dossier" if media
@@ -3933,7 +4156,7 @@ class _DoneBanner(QWidget):
         lay.setSpacing(0)
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.btn_open = GradientButton("📂   Ouvrir le dossier des photos")
+        self.btn_open = GradientButton(L("📂   Ouvrir le dossier des photos"))
         self.btn_open.setFixedHeight(46)
         self.btn_open.setMinimumWidth(340)
         btn_row.addWidget(self.btn_open)
@@ -4022,7 +4245,7 @@ class UsbImportView(QWidget):
     import_finished    = pyqtSignal()
 
     _SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-    _USB_ALL_LABEL = "Tous les dossiers"
+    _USB_ALL_LABEL = property(lambda self: L("Tous les dossiers"))
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -4067,11 +4290,11 @@ class UsbImportView(QWidget):
         info_lay.addSpacing(10)
         info_lay.addWidget(self._lbl_drive)
         info_lay.addStretch()
-        btn_about = SmallButton("ℹ  À propos")
+        btn_about = SmallButton(L("ℹ  À propos"))
         btn_about.setFixedWidth(110)
         btn_about.clicked.connect(lambda: UsbAboutDialog(self).exec())
         info_lay.addWidget(btn_about)
-        btn_opt = SmallButton("⚙  Options")
+        btn_opt = SmallButton(L("⚙  Options"))
         btn_opt.setFixedWidth(110)
         btn_opt.clicked.connect(self.options_requested)
         info_lay.addWidget(btn_opt)
@@ -4088,7 +4311,7 @@ class UsbImportView(QWidget):
         src_lay.setHorizontalSpacing(12)
         src_lay.setVerticalSpacing(10)
 
-        self._subdir_lbl = QLabel("Dossier")
+        self._subdir_lbl = QLabel(L("Dossier"))
         self._subdir_lbl.setStyleSheet("font-size: 10pt;")
         self._select = PopupSelect()
         self._select.setMinimumWidth(280)
@@ -4115,7 +4338,7 @@ class UsbImportView(QWidget):
         date_lay = QHBoxLayout(self._date_row)
         date_lay.setContentsMargins(0, 0, 0, 0)
         date_lay.setSpacing(10)
-        self._date_cb = QCheckBox("Seulement les photos prises depuis le")
+        self._date_cb = QCheckBox(L("Seulement les photos prises depuis le"))
         self._date_edit = QDateEdit()
         self._date_edit.setCalendarPopup(True)
         self._date_edit.setDate(QDate.currentDate().addDays(-30))
@@ -4139,23 +4362,23 @@ class UsbImportView(QWidget):
         btn_row.setSpacing(16)
 
         self._btn_copy = _UsbActionButton(
-            "📋", "Copier",
-            "Copie les fichiers\nsur le disque dur\n(source inchangée)",
+            "📋", L("Copier"),
+            L("Copie les fichiers\nsur le disque dur\n(source inchangée)"),
             _UsbActionButton.ROLE_PRIMARY
         )
         self._btn_copy_move = _UsbActionButton(
-            "📦", "Copier + Déplacer",
-            "Copie, puis range les fichiers\nde la source dans DCIM/_old",
+            "📦", L("Copier + Déplacer"),
+            L("Copie, puis range les fichiers\nde la source dans DCIM/_old"),
             _UsbActionButton.ROLE_WARNING
         )
         self._btn_copy_del = _UsbActionButton(
-            "🗑", "Copier + Supprimer",
-            "Copie puis supprime\nles fichiers\nde la source",
+            "🗑", L("Copier + Supprimer"),
+            L("Copie puis supprime\nles fichiers\nde la source"),
             _UsbActionButton.ROLE_DANGER
         )
         self._btn_dry = _UsbActionButton(
-            "🔬", "Simulation",
-            "Simule la copie\nsans toucher\naux fichiers",
+            "🔬", L("Simulation"),
+            L("Simule la copie\nsans toucher\naux fichiers"),
             _UsbActionButton.ROLE_NEUTRAL
         )
 
@@ -4220,7 +4443,7 @@ class UsbImportView(QWidget):
 
         stop_row = QHBoxLayout()
         stop_row.addStretch()
-        self._btn_stop = DangerButton("⏹  Arrêter")
+        self._btn_stop = DangerButton(L("⏹  Arrêter"))
         self._btn_stop.setMinimumWidth(170)
         self._btn_stop.clicked.connect(self._stop_worker)
         stop_row.addWidget(self._btn_stop)
@@ -4301,9 +4524,9 @@ class UsbImportView(QWidget):
         # de ne pas voir l'option dans ce cas.
         self._btn_copy_move.setVisible(
             get_mtp_move_support(device_name) != 'no')
-        self._select.set_browse("📂   Parcourir le téléphone…")
+        self._select.set_browse(L("📂   Parcourir le téléphone…"))
         self._select.set_entries([])
-        self._select.set_current("Recherche du dossier photos…", None)
+        self._select.set_current(L("Recherche du dossier photos…"), None)
         # Cherche DCIM/Camera (et ses voisins) en arrière-plan
         if self._path_worker is not None and self._path_worker.isRunning():
             self._path_worker.terminate()
@@ -4316,7 +4539,7 @@ class UsbImportView(QWidget):
         if self._source != 'mtp':
             return
         if not parts:
-            self._select.set_current("Aucun dossier photo trouvé", None)
+            self._select.set_current(L("Aucun dossier photo trouvé"), None)
             self._on_count(0)
             return
         self._set_mtp_path(list(parts), siblings)
@@ -4400,8 +4623,9 @@ class UsbImportView(QWidget):
         self._lbl_spinner.setStyleSheet(f"font-size: 12pt; color: {t['a1']};")
         if self._scanning:
             n    = self._scan_partial
-            noun = "trouvé" if n <= 1 else "trouvés"
-            self._lbl_count.setText(f"{char}  Analyse… {n} {noun}")
+            noun = L("trouvé") if n <= 1 else L("trouvés")
+            self._lbl_count.setText(L("{c}  Analyse… {n} {noun}").format(
+                c=char, n=n, noun=noun))
             self._lbl_count.setStyleSheet(self._count_pill_css(scanning=True))
         self._spin_i += 1
 
@@ -4424,7 +4648,7 @@ class UsbImportView(QWidget):
         self._scan_partial = 0
         self._file_count   = 0
         self._file_names   = []
-        self._lbl_count.setText("⏳  Analyse en cours…")
+        self._lbl_count.setText(L("⏳  Analyse en cours…"))
         self._lbl_count.setStyleSheet(self._count_pill_css(scanning=True))
         for btn in (self._btn_copy, self._btn_copy_move,
                     self._btn_copy_del, self._btn_dry):
@@ -4465,19 +4689,20 @@ class UsbImportView(QWidget):
             return
         total   = self._file_count
         pending = self._pending_count()
-        noun    = "fichier" if total == 1 else "fichiers"
+        noun    = L("fichier") if total == 1 else L("fichiers")
         if total == 0:
-            txt = "Aucun fichier photo/vidéo"
+            txt = L("Aucun fichier photo/vidéo")
         elif pending != total:
             date_txt = self._date_edit.date().toString("dd/MM/yyyy")
-            txt = (f"{total} {noun} · {pending} depuis le {date_txt}")
+            txt = L("{total} {noun} · {pending} depuis le {d}").format(
+                total=total, noun=noun, pending=pending, d=date_txt)
         else:
-            txt = f"{total} {noun} photos/vidéos"
+            txt = L("{total} {noun} photos/vidéos").format(total=total, noun=noun)
         self._lbl_count.setText(txt)
         self._lbl_count.setStyleSheet(self._count_pill_css())
-        btn_txt = ("aucun fichier" if pending == 0
-                   else f"{pending} fichier" if pending == 1
-                   else f"{pending} fichiers")
+        btn_txt = (L("aucun fichier") if pending == 0
+                   else L("{n} fichier").format(n=pending) if pending == 1
+                   else L("{n} fichiers").format(n=pending))
         busy = self._worker is not None and self._worker.isRunning()
         for btn in (self._btn_copy, self._btn_copy_move,
                     self._btn_copy_del, self._btn_dry):
@@ -4516,7 +4741,7 @@ class UsbImportView(QWidget):
 
     def notify_mtp_disconnected(self):
         t = T()
-        self._action_lbl.setText("⚠  Téléphone déconnecté — import interrompu")
+        self._action_lbl.setText(L("⚠  Téléphone déconnecté — import interrompu"))
         self._action_lbl.setStyleSheet(
             f"font-size: 10pt; font-weight: bold; color: {t['err']};")
 
@@ -4568,19 +4793,20 @@ class UsbImportView(QWidget):
             return
         if mode == UsbCopyWorker.MODE_COPY_DELETE:
             n    = self._pending_count()
-            noun = "fichier" if n == 1 else "fichiers"
+            noun = L("fichier") if n == 1 else L("fichiers")
             dlg  = QMessageBox(self)
-            dlg.setWindowTitle("Confirmer la suppression")
+            dlg.setWindowTitle(L("Confirmer la suppression"))
             dlg.setIcon(QMessageBox.Icon.Warning)
-            dlg.setText(f"Supprimer {n} {noun} de la source après copie ?")
+            dlg.setText(L("Supprimer {n} {noun} de la source après copie ?").format(
+                n=n, noun=noun))
             dlg.setInformativeText(
-                "Les fichiers seront d'abord copiés sur le disque dur, "
-                "puis supprimés définitivement de la source.\n"
-                "Cette action est irréversible.")
+                L("Les fichiers seront d'abord copiés sur le disque dur, "
+                  "puis supprimés définitivement de la source.\n"
+                  "Cette action est irréversible."))
             dlg.setStandardButtons(
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            dlg.button(QMessageBox.StandardButton.Yes).setText("Oui")
-            dlg.button(QMessageBox.StandardButton.No).setText("Non")
+            dlg.button(QMessageBox.StandardButton.Yes).setText(L("Oui"))
+            dlg.button(QMessageBox.StandardButton.No).setText(L("Non"))
             dlg.setDefaultButton(QMessageBox.StandardButton.No)
             if dlg.exec() != QMessageBox.StandardButton.Yes:
                 return
@@ -4589,11 +4815,11 @@ class UsbImportView(QWidget):
                  self._source, mode, get_usb_target())
         self._progress_area.setVisible(True)
         self._btn_stop.setVisible(True)
-        self._btn_stop.setText("⏹  Arrêter")
+        self._btn_stop.setText(L("⏹  Arrêter"))
         self._btn_stop.setEnabled(True)
         self._done_banner.setVisible(False)
         self._log_list.clear()
-        self._prog_lbl.setText("Démarrage…")
+        self._prog_lbl.setText(L("Démarrage…"))
         self._set_buttons_enabled(False)
         mode_to_btn = {
             UsbCopyWorker.MODE_COPY:        self._btn_copy,
@@ -4607,10 +4833,10 @@ class UsbImportView(QWidget):
         if self._active_btn:
             self._active_btn.setActive(True)
         mode_labels = {
-            UsbCopyWorker.MODE_COPY:        "📋  Copier en cours…",
-            UsbCopyWorker.MODE_COPY_MOVE:   "📦  Copier + Déplacer en cours…",
-            UsbCopyWorker.MODE_COPY_DELETE: "🗑  Copier + Supprimer en cours…",
-            UsbCopyWorker.MODE_DRY_RUN:     "🔬  Simulation en cours…",
+            UsbCopyWorker.MODE_COPY:        L("📋  Copier en cours…"),
+            UsbCopyWorker.MODE_COPY_MOVE:   L("📦  Copier + Déplacer en cours…"),
+            UsbCopyWorker.MODE_COPY_DELETE: L("🗑  Copier + Supprimer en cours…"),
+            UsbCopyWorker.MODE_DRY_RUN:     L("🔬  Simulation en cours…"),
         }
         t = T()
         self._action_lbl.setText(mode_labels.get(mode, ""))
@@ -4659,24 +4885,25 @@ class UsbImportView(QWidget):
         worker = self._worker
         if worker is None:
             return
-        noun = "fichier" if n == 1 else "fichiers"
+        noun = L("fichier") if n == 1 else L("fichiers")
         dlg  = QMessageBox(self)
-        dlg.setWindowTitle("Rangement lent")
+        dlg.setWindowTitle(L("Rangement lent"))
         dlg.setIcon(QMessageBox.Icon.Warning)
-        dlg.setText("Ce téléphone ne permet pas de déplacer ses fichiers "
-                    "directement.")
+        dlg.setText(L("Ce téléphone ne permet pas de déplacer ses fichiers "
+                      "directement."))
         dlg.setInformativeText(
-            f"L'application peut quand même ranger les {n} {noun} dans "
-            "DCIM/_old en les renvoyant depuis le PC, mais cela peut "
-            "prendre du temps. Gardez l'écran du téléphone déverrouillé "
-            "pendant l'opération.\n\n"
-            "•  Continuer : rangement lent, avec progression et temps "
-            "restant.\n"
-            "•  Arrêter : vos photos sont déjà copiées sur le PC ; rien "
-            "n'est modifié sur le téléphone (à vous d'y faire le ménage).")
-        btn_go   = dlg.addButton("Continuer (lent)",
+            L("L'application peut quand même ranger les {n} {noun} dans "
+              "DCIM/_old en les renvoyant depuis le PC, mais cela peut "
+              "prendre du temps. Gardez l'écran du téléphone déverrouillé "
+              "pendant l'opération.\n\n"
+              "•  Continuer : rangement lent, avec progression et temps "
+              "restant.\n"
+              "•  Arrêter : vos photos sont déjà copiées sur le PC ; rien "
+              "n'est modifié sur le téléphone (à vous d'y faire le ménage).").format(
+                n=n, noun=noun))
+        btn_go   = dlg.addButton(L("Continuer (lent)"),
                                  QMessageBox.ButtonRole.AcceptRole)
-        btn_stop = dlg.addButton("Arrêter là",
+        btn_stop = dlg.addButton(L("Arrêter là"),
                                  QMessageBox.ButtonRole.RejectRole)
         dlg.setDefaultButton(btn_stop)
         dlg.exec()
@@ -4685,10 +4912,10 @@ class UsbImportView(QWidget):
     def _stop_worker(self):
         if self._worker and self._worker.isRunning():
             self._worker.stop()
-            self._btn_stop.setText("⏳  Arrêt en cours…")
+            self._btn_stop.setText(L("⏳  Arrêt en cours…"))
             self._btn_stop.setEnabled(False)
             self._batch_lbl.setText(
-                "Arrêt demandé — fin de l'opération en cours…")
+                L("Arrêt demandé — fin de l'opération en cours…"))
 
     def _on_log(self, kind: str, msg: str):
         t = T()
@@ -4770,25 +4997,28 @@ class UsbImportView(QWidget):
         sim = self._last_mode == UsbCopyWorker.MODE_DRY_RUN
         stopped = self._worker is not None and getattr(self._worker, '_stop', False)
         if stopped:
-            title, color = "⏹  Import interrompu", t['warn']
+            title, color = L("⏹  Import interrompu"), t['warn']
         elif errors > 0:
-            noun_e = "erreur" if errors == 1 else "erreurs"
-            title, color = f"Import terminé — {errors} {noun_e}", t['warn']
+            noun_e = L("erreur") if errors == 1 else L("erreurs")
+            title, color = L("Import terminé — {n} {noun}").format(
+                n=errors, noun=noun_e), t['warn']
         elif sim:
-            title, color = "✓  Simulation terminée", t['a1']
+            title, color = L("✓  Simulation terminée"), t['a1']
         elif copied == 0:
-            title, color = "✓  Rien de nouveau à importer", t['a1']
+            title, color = L("✓  Rien de nouveau à importer"), t['a1']
         else:
-            title, color = "🎉  Import terminé !", t['ok']
+            title, color = L("🎉  Import terminé !"), t['ok']
         if sim:
-            stats = f"{skipped} fichiers analysés  ·  {dur_str}"
+            stats = L("{n} fichiers analysés  ·  {dur}").format(
+                n=skipped, dur=dur_str)
         else:
-            noun = "photo/vidéo importée" if copied == 1 else "photos/vidéos importées"
+            noun = (L("photo/vidéo importée") if copied == 1
+                    else L("photos/vidéos importées"))
             stats = f"{copied} {noun}"
             if skipped:
-                stats += f"  ·  {skipped} déjà présentes"
+                stats += L("  ·  {n} déjà présentes").format(n=skipped)
             if errors:
-                stats += f"  ·  {errors} en erreur"
+                stats += L("  ·  {n} en erreur").format(n=errors)
             stats += f"  ·  {dur_str}{bytes_str}"
         self._done_banner.show_result(title, stats, color,
                                       show_open=copied > 0 and not sim)
@@ -4812,9 +5042,10 @@ class UsbImportView(QWidget):
         if errors > 0 and self._last_mode == UsbCopyWorker.MODE_COPY_DELETE:
             from PyQt6.QtWidgets import QListWidgetItem
             t    = T()
-            noun = "fichier" if errors == 1 else "fichiers"
+            noun = L("fichier") if errors == 1 else L("fichiers")
             warn = QListWidgetItem(
-                f"⚠  {errors} {noun} en erreur n'ont PAS été supprimés de la source.")
+                L("⚠  {n} {noun} en erreur n'ont PAS été supprimés de la source.").format(
+                    n=errors, noun=noun))
             warn.setForeground(QColor(t['warn']))
             self._log_list.addItem(warn)
             self._log_list.scrollToBottom()
@@ -4859,6 +5090,16 @@ class UsbImportView(QWidget):
                     pass
         except Exception:
             pass
+
+
+KOFI_URL = "https://ko-fi.com/hypedigger"
+
+
+def open_kofi():
+    """Ouvre la page Ko-fi du projet dans le navigateur."""
+    from PyQt6.QtGui import QDesktopServices
+    from PyQt6.QtCore import QUrl
+    QDesktopServices.openUrl(QUrl(KOFI_URL))
 
 
 # ── About Dialog ───────────────────────────────────────────────────────────
@@ -4920,20 +5161,19 @@ class AboutDialog(QDialog):
 
         # Body
         self._body = QLabel(
-            "<p>DCIM Sorter trie automatiquement vos photos et vidéos dans des "
-            "sous-dossiers par <b>jour</b>, en lisant les données <b>EXIF</b> "
-            "(date de prise de vue réelle).</p>"
-            "<p><b>Fonctionnalités :</b></p>"
-            "<ul>"
-            "<li>Lecture EXIF via <b>ExifTool</b> pour une date précise</li>"
-            "<li>Prise en charge des photos <b>RAW</b> (ARW, CR2, CR3…) et vidéos</li>"
-            "<li>Sous-dossiers prioritaires configurables (ex : <i>_Priority</i>)</li>"
-            "<li>Barre de progression animée en temps réel</li>"
-            "<li>40 thèmes visuels</li>"
-            "<li>Interface 4K / HiDPI</li>"
-            "</ul>"
-            "<p><b>Formats supportés :</b> "
-            "JPG · PNG · ARW · CR2 · CR3 · MP4 · MOV</p>"
+            L("<p>DCIM Sorter trie automatiquement vos photos et vidéos dans des "
+              "sous-dossiers par <b>jour</b>, en lisant les données <b>EXIF</b> "
+              "(date de prise de vue réelle).</p>"
+              "<p><b>Fonctionnalités :</b></p>"
+              "<ul>"
+              "<li>Import depuis cartes SD, clés USB et <b>téléphones (MTP)</b></li>"
+              "<li>Lecture EXIF via <b>ExifTool</b> pour une date précise</li>"
+              "<li>Prise en charge des photos <b>RAW</b> (ARW, CR2, CR3…) et vidéos</li>"
+              "<li>Sous-dossiers prioritaires configurables (ex : <i>_Priority</i>)</li>"
+              "<li>40 thèmes visuels · interface 4K / HiDPI</li>"
+              "</ul>"
+              "<p><b>Formats supportés :</b> "
+              "JPG · PNG · ARW · CR2 · CR3 · MP4 · MOV…</p>")
         )
         self._body.setWordWrap(True)
         self._body.setTextFormat(Qt.TextFormat.RichText)
@@ -4941,10 +5181,14 @@ class AboutDialog(QDialog):
             f"color: {t['text']}; background: transparent; font-size: 10pt;")
         lay.addWidget(self._body)
 
-        # Close button
+        # Close button + Ko-fi
         close_row = QHBoxLayout()
+        b_kofi = QPushButton(L("☕  Soutenir sur Ko-fi"))
+        b_kofi.setCursor(Qt.CursorShape.PointingHandCursor)
+        b_kofi.clicked.connect(open_kofi)
+        close_row.addWidget(b_kofi)
         close_row.addStretch()
-        b_close = QPushButton("Fermer")
+        b_close = QPushButton(L("Fermer"))
         b_close.clicked.connect(self.accept)
         close_row.addWidget(b_close)
         lay.addLayout(close_row)
@@ -5007,25 +5251,28 @@ class UsbAboutDialog(QDialog):
         lay.addWidget(sep)
 
         body = QLabel(
-            "<p>Cette section permet d'<b>importer les photos et vidéos</b> depuis "
-            "une clé USB (ou carte SD via lecteur) qui contient un dossier "
-            "<b>DCIM</b> — le dossier standard des appareils photo.</p>"
-            "<p><b>Trois modes disponibles :</b></p>"
-            "<ul>"
-            "<li><b>📋 Copier</b> — copie les fichiers vers le disque dur, "
-            "la clé USB reste inchangée</li>"
-            "<li><b>🗑 Copier + Supprimer</b> — copie puis efface les fichiers "
-            "de la clé (libère l'espace). Suppression uniquement si aucune erreur.</li>"
-            "<li><b>🔬 Simulation</b> — simule la copie sans toucher aux fichiers, "
-            "pour vérifier ce qui serait importé</li>"
-            "</ul>"
-            "<p><b>Structure créée automatiquement :</b><br/>"
-            "<code>destination / année / to_sort / mois / jour</code><br/>"
-            "Exemple : <code>E:\\Photos\\2026\\to_sort\\03\\27\\IMG_1234.JPG</code></p>"
-            "<p><b>Date utilisée :</b> données EXIF (date de prise de vue réelle) "
-            "via ExifTool, sinon date de création du fichier.</p>"
-            "<p><b>Doublons :</b> si un fichier du même nom existe déjà, "
-            "un suffixe <code>_2</code>, <code>_3</code>… est ajouté automatiquement.</p>"
+            L("<p>Cette section permet d'<b>importer les photos et vidéos</b> depuis "
+              "une carte SD, une clé USB ou un <b>téléphone branché en MTP</b>, "
+              "à partir du dossier <b>DCIM</b> — le dossier standard des appareils photo.</p>"
+              "<p><b>Quatre modes disponibles :</b></p>"
+              "<ul>"
+              "<li><b>📋 Copier</b> — copie les fichiers vers le disque dur, "
+              "la source reste inchangée</li>"
+              "<li><b>📦 Copier + Déplacer</b> — copie, puis range les fichiers "
+              "de la source dans <code>DCIM/_old</code> (rien n'est supprimé)</li>"
+              "<li><b>🗑 Copier + Supprimer</b> — copie puis efface les fichiers "
+              "de la source. Seuls les fichiers dont la copie est vérifiée sont supprimés.</li>"
+              "<li><b>🔬 Simulation</b> — simule la copie sans toucher aux fichiers, "
+              "pour vérifier ce qui serait importé</li>"
+              "</ul>"
+              "<p><b>Structure créée automatiquement :</b><br/>"
+              "<code>destination / année / to_sort / mois / jour</code><br/>"
+              "Exemple : <code>E:\\Photos\\2026\\to_sort\\03\\27\\IMG_1234.JPG</code></p>"
+              "<p><b>Date utilisée :</b> données EXIF (date de prise de vue réelle) "
+              "via ExifTool, sinon date du fichier.</p>"
+              "<p><b>Doublons :</b> un fichier déjà importé (même nom, même taille) "
+              "est reconnu et ignoré ; en cas de conflit de nom, un suffixe "
+              "<code>_2</code>, <code>_3</code>… est ajouté.</p>")
         )
         body.setWordWrap(True)
         body.setTextFormat(Qt.TextFormat.RichText)
@@ -5034,8 +5281,12 @@ class UsbAboutDialog(QDialog):
         lay.addWidget(body)
 
         close_row = QHBoxLayout()
+        b_kofi = QPushButton(L("☕  Soutenir sur Ko-fi"))
+        b_kofi.setCursor(Qt.CursorShape.PointingHandCursor)
+        b_kofi.clicked.connect(open_kofi)
+        close_row.addWidget(b_kofi)
         close_row.addStretch()
-        b_close = QPushButton("Fermer")
+        b_close = QPushButton(L("Fermer"))
         b_close.clicked.connect(self.accept)
         close_row.addWidget(b_close)
         lay.addLayout(close_row)
@@ -5046,7 +5297,7 @@ class UsbAboutDialog(QDialog):
 class OptionsDialog(QDialog):
     def __init__(self, parent=None, initial_tab: int = 0):
         super().__init__(parent)
-        self.setWindowTitle("Options")
+        self.setWindowTitle(L("Options"))
         self.setMinimumWidth(520)
         self._orig_theme  = get_theme()
         self._initial_tab = initial_tab
@@ -5127,7 +5378,20 @@ class OptionsDialog(QDialog):
         gen = QWidget(); gen.setStyleSheet("background: transparent;")
         g   = QVBoxLayout(gen); g.setContentsMargins(16, 16, 16, 8); g.setSpacing(10)
 
-        g.addWidget(QLabel("Dossier racine des photos :"))
+        # Langue (redémarrage requis pour appliquer partout)
+        lang_row = QHBoxLayout()
+        lang_lbl = QLabel(L("Langue / Language :"))
+        self._lang_combo = QComboBox()
+        self._lang_combo.addItem("Français", "fr")
+        self._lang_combo.addItem("English", "en")
+        self._lang_combo.setCurrentIndex(1 if get_lang() == "en" else 0)
+        self._lang_combo.setFixedWidth(160)
+        lang_row.addWidget(lang_lbl)
+        lang_row.addWidget(self._lang_combo)
+        lang_row.addStretch()
+        g.addLayout(lang_row)
+
+        g.addWidget(QLabel(L("Dossier racine des photos :")))
         r_row = QHBoxLayout()
         self._root_edit = QLineEdit(get_root())
         r_row.addWidget(self._root_edit)
@@ -5136,7 +5400,7 @@ class OptionsDialog(QDialog):
         r_row.addWidget(b_root)
         g.addLayout(r_row)
 
-        g.addWidget(QLabel("Sous-dossiers prioritaires :"))
+        g.addWidget(QLabel(L("Sous-dossiers prioritaires :")))
         self._prios_list = QListWidget()
         self._prios_list.setFixedHeight(80)
         self._prios_list.setStyleSheet(
@@ -5148,16 +5412,16 @@ class OptionsDialog(QDialog):
         g.addWidget(self._prios_list)
         prio_row = QHBoxLayout()
         self._prio_new = QLineEdit()
-        self._prio_new.setPlaceholderText("Nom du sous-dossier…")
+        self._prio_new.setPlaceholderText(L("Nom du sous-dossier…"))
         prio_row.addWidget(self._prio_new)
-        b_prio_add = QPushButton("Ajouter"); b_prio_add.setFixedWidth(96)
+        b_prio_add = QPushButton(L("Ajouter")); b_prio_add.setFixedWidth(96)
         b_prio_add.clicked.connect(self._add_prio)
-        b_prio_del = QPushButton("Supprimer"); b_prio_del.setFixedWidth(96)
+        b_prio_del = QPushButton(L("Supprimer")); b_prio_del.setFixedWidth(96)
         b_prio_del.clicked.connect(self._del_prio)
         prio_row.addWidget(b_prio_add); prio_row.addWidget(b_prio_del)
         g.addLayout(prio_row)
 
-        g.addWidget(QLabel("ExifTool :"))
+        g.addWidget(QLabel(L("ExifTool :")))
         e_row = QHBoxLayout()
         self._exif_edit = QLineEdit(get_exif())
         e_row.addWidget(self._exif_edit)
@@ -5168,11 +5432,11 @@ class OptionsDialog(QDialog):
         b_path.clicked.connect(lambda: self._exif_edit.setText("exiftool.exe"))
         e_row.addWidget(b_path)
         g.addLayout(e_row)
-        exif_hint = QLabel("Laisser « exiftool.exe » pour utiliser la version du PATH")
+        exif_hint = QLabel(L("Laisser « exiftool.exe » pour utiliser la version du PATH"))
         exif_hint.setStyleSheet(f"color: {t['dim']}; font-size: 9pt;")
         g.addWidget(exif_hint)
 
-        g.addWidget(QLabel("Formats de fichiers :"))
+        g.addWidget(QLabel(L("Formats de fichiers :")))
         self._fmt_list = QListWidget()
         self._fmt_list.setFixedHeight(72)
         self._fmt_list.setStyleSheet(
@@ -5189,19 +5453,19 @@ class OptionsDialog(QDialog):
         g.addWidget(self._fmt_list)
         fmt_row = QHBoxLayout()
         self._fmt_new = QLineEdit()
-        self._fmt_new.setPlaceholderText("Extension (ex: dng, heic, nef…)")
+        self._fmt_new.setPlaceholderText(L("Extension (ex: dng, heic, nef…)"))
         fmt_row.addWidget(self._fmt_new)
-        b_fmt_add = QPushButton("Ajouter"); b_fmt_add.setFixedWidth(96)
+        b_fmt_add = QPushButton(L("Ajouter")); b_fmt_add.setFixedWidth(96)
         b_fmt_add.clicked.connect(self._add_fmt)
-        b_fmt_del = QPushButton("Supprimer"); b_fmt_del.setFixedWidth(96)
+        b_fmt_del = QPushButton(L("Supprimer")); b_fmt_del.setFixedWidth(96)
         b_fmt_del.clicked.connect(self._del_fmt)
         fmt_row.addWidget(b_fmt_add); fmt_row.addWidget(b_fmt_del)
         g.addLayout(fmt_row)
-        fmt_hint = QLabel("Les formats 🔒 sont intégrés et ne peuvent pas être supprimés.")
+        fmt_hint = QLabel(L("Les formats 🔒 sont intégrés et ne peuvent pas être supprimés."))
         fmt_hint.setStyleSheet(f"color: {t['dim']}; font-size: 9pt;")
         g.addWidget(fmt_hint)
 
-        g.addWidget(QLabel("Thème :"))
+        g.addWidget(QLabel(L("Thème :")))
         self._combo = QComboBox()
         for key, th in THEMES.items():
             pix = QPixmap(44, 16)
@@ -5220,11 +5484,11 @@ class OptionsDialog(QDialog):
         self._combo.currentIndexChanged.connect(self._preview_theme)
         theme_row = QHBoxLayout()
         b_prev_t = QPushButton("◀"); b_prev_t.setFixedWidth(32)
-        b_prev_t.setToolTip("Thème précédent")
+        b_prev_t.setToolTip(L("Thème précédent"))
         b_prev_t.clicked.connect(lambda: self._combo.setCurrentIndex(
             (self._combo.currentIndex() - 1) % self._combo.count()))
         b_next_t = QPushButton("▶"); b_next_t.setFixedWidth(32)
-        b_next_t.setToolTip("Thème suivant")
+        b_next_t.setToolTip(L("Thème suivant"))
         b_next_t.clicked.connect(lambda: self._combo.setCurrentIndex(
             (self._combo.currentIndex() + 1) % self._combo.count()))
         theme_row.addWidget(b_prev_t)
@@ -5233,13 +5497,13 @@ class OptionsDialog(QDialog):
         g.addLayout(theme_row)
         g.addStretch()
 
-        self._tabs.addTab(gen, "⚙  Général")
+        self._tabs.addTab(gen, L("⚙  Général"))
 
         # ── Tab 1 : Import USB ─────────────────────────────────────────────
         usb_tab = QWidget(); usb_tab.setStyleSheet("background: transparent;")
         u = QVBoxLayout(usb_tab); u.setContentsMargins(16, 16, 16, 8); u.setSpacing(10)
 
-        u.addWidget(QLabel("Dossier de destination :"))
+        u.addWidget(QLabel(L("Dossier de destination :")))
         usb_row = QHBoxLayout()
         self._usb_edit = QLineEdit(get_usb_target())
         usb_row.addWidget(self._usb_edit)
@@ -5248,14 +5512,14 @@ class OptionsDialog(QDialog):
         usb_row.addWidget(b_usb)
         u.addLayout(usb_row)
         usb_hint = QLabel(
-            "Structure créée automatiquement :\n"
-            "destination / année / to_sort / mois / jour")
+            L("Structure créée automatiquement :\n"
+              "destination / année / to_sort / mois / jour"))
         usb_hint.setStyleSheet(f"color: {t['dim']}; font-size: 9pt;")
         u.addWidget(usb_hint)
 
         u.addSpacing(8)
         timeout_row = QHBoxLayout()
-        timeout_lbl = QLabel("Timeout scan source (s) :")
+        timeout_lbl = QLabel(L("Timeout scan source (s) :"))
         self._timeout_spin = QSpinBox()
         self._timeout_spin.setRange(5, 120)
         self._timeout_spin.setSuffix(" s")
@@ -5268,7 +5532,7 @@ class OptionsDialog(QDialog):
 
         u.addSpacing(8)
         workers_row = QHBoxLayout()
-        workers_lbl = QLabel("Threads de copie parallèle :")
+        workers_lbl = QLabel(L("Threads de copie parallèle :"))
         self._workers_spin = QSpinBox()
         self._workers_spin.setRange(1, 32)
         self._workers_spin.setValue(get_usb_workers())
@@ -5278,31 +5542,40 @@ class OptionsDialog(QDialog):
         workers_row.addStretch()
         u.addLayout(workers_row)
         workers_hint = QLabel(
-            f"Valeur recommandée sur cette machine : {DEFAULT_USB_WORKERS}.\n"
-            "Réduire à 1–2 sur une machine peu puissante ou avec un disque dur rotatif.")
+            L("Valeur recommandée sur cette machine : {n}.\n"
+              "Réduire à 1–2 sur une machine peu puissante ou avec un disque "
+              "dur rotatif.").format(n=DEFAULT_USB_WORKERS))
         workers_hint.setStyleSheet(f"color: {t['dim']}; font-size: 9pt;")
         u.addWidget(workers_hint)
+
+        u.addSpacing(8)
+        self._notify_cb = QCheckBox(L("Notification Windows à la fin de l'import"))
+        self._notify_cb.setChecked(get_notify_end())
+        u.addWidget(self._notify_cb)
+        self._sound_cb = QCheckBox(L("Son à la fin de l'import"))
+        self._sound_cb.setChecked(get_sound_end())
+        u.addWidget(self._sound_cb)
         u.addStretch()
 
-        self._tabs.addTab(usb_tab, "🔌  Import USB")
+        self._tabs.addTab(usb_tab, L("🔌  Import USB"))
 
         self._tabs.setCurrentIndex(self._initial_tab)
 
         # ── Boutons OK / Annuler ───────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        b_cancel = QPushButton("Annuler"); b_cancel.clicked.connect(self._cancel)
-        b_ok     = QPushButton("Enregistrer"); b_ok.setObjectName("btn_ok")
+        b_cancel = QPushButton(L("Annuler")); b_cancel.clicked.connect(self._cancel)
+        b_ok     = QPushButton(L("Enregistrer")); b_ok.setObjectName("btn_ok")
         b_ok.clicked.connect(self._save)
         btn_row.addWidget(b_cancel); btn_row.addWidget(b_ok)
         lay.addLayout(btn_row)
 
     def _pick_root(self):
-        p = QFileDialog.getExistingDirectory(self, "Dossier racine", get_root())
+        p = QFileDialog.getExistingDirectory(self, L("Dossier racine"), get_root())
         if p: self._root_edit.setText(p)
 
     def _pick_usb(self):
-        p = QFileDialog.getExistingDirectory(self, "Destination import USB", get_usb_target())
+        p = QFileDialog.getExistingDirectory(self, L("Destination import USB"), get_usb_target())
         if p: self._usb_edit.setText(p)
 
     def _add_fmt(self):
@@ -5333,7 +5606,7 @@ class OptionsDialog(QDialog):
 
     def _pick_exif(self):
         p, _ = QFileDialog.getOpenFileName(
-            self, "Sélectionner ExifTool", "", "Exécutables (*.exe);;Tous (*.*)")
+            self, L("Sélectionner ExifTool"), "", L("Exécutables (*.exe);;Tous (*.*)"))
         if p: self._exif_edit.setText(p)
 
     def _preview_theme(self, idx: int):
@@ -5354,6 +5627,17 @@ class OptionsDialog(QDialog):
             if self._fmt_list.item(i).text() not in self._default_fmt_names
         ])
         apply_theme(self._combo.currentData())
+        set_notify_end(self._notify_cb.isChecked())
+        set_sound_end(self._sound_cb.isChecked())
+        new_lang = self._lang_combo.currentData()
+        if new_lang != get_lang():
+            set_lang(new_lang)
+            QMessageBox.information(
+                self, L("Langue / Language :"),
+                L("La nouvelle langue sera appliquée au prochain démarrage "
+                  "de l'application.") if new_lang == "fr" else
+                "The new language will be applied the next time you start "
+                "the application.")
         self.accept()
 
     def _cancel(self):
@@ -5565,10 +5849,10 @@ class MainWindow(QMainWindow):
         tab_row.setContentsMargins(16, 6, 16, 0)
         tab_row.setSpacing(8)
 
-        self._tab_sort_btn = _TabButton("📂  Trier par date")
-        self._tab_usb_btn  = _TabButton("💾  Carte SD")
+        self._tab_sort_btn = _TabButton(L("📂  Trier par date"))
+        self._tab_usb_btn  = _TabButton(L("💾  Carte SD"))
         self._tab_usb_btn.setVisible(False)
-        self._tab_mtp_btn  = _TabButton("📱  Téléphone")
+        self._tab_mtp_btn  = _TabButton(L("📱  Téléphone"))
         self._tab_mtp_btn.setVisible(False)
 
         self._tab_sort_btn.clicked.connect(lambda: self._switch_tab(0))
@@ -5652,8 +5936,8 @@ class MainWindow(QMainWindow):
             self._ghost_tab.stop()
             return
         self._ghost_tab.set_text(
-            "Recherche d'un téléphone…" if self._tab_usb_btn.isVisible()
-            else "Recherche d'une carte SD ou d'un téléphone…")
+            L("Recherche d'un téléphone…") if self._tab_usb_btn.isVisible()
+            else L("Recherche d'une carte SD ou d'un téléphone…"))
         self._ghost_tab.start()
 
     def _poll_usb(self):
