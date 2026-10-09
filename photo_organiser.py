@@ -21,7 +21,8 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QScrollArea, QFrame, QSizeGrip, QGridLayout,
     QFileDialog, QDialog, QLineEdit, QComboBox, QMessageBox, QStackedWidget,
     QGraphicsOpacityEffect, QListWidget, QToolTip, QTabWidget,
-    QCheckBox, QDateEdit, QProgressBar, QSpinBox, QListWidgetItem, QMenu
+    QCheckBox, QDateEdit, QProgressBar, QSpinBox, QListWidgetItem, QMenu,
+    QSystemTrayIcon
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QRunnable, QThreadPool, QPropertyAnimation,
@@ -789,8 +790,53 @@ _EN: dict[str, str] = {
     "C'est généralement le cas quand son écran est verrouillé.\n\nDéverrouillez l'écran du téléphone, puis cliquez sur Réessayer — ou annulez l'import (rien n'a été modifié).": "This usually happens when its screen is locked.\n\nUnlock the phone's screen, then click Retry — or cancel the import (nothing has been changed).",
     "Réessayer": "Retry",
     "Annuler l'import": "Cancel the import",
+    # Toast / reprise / chip / maj / soutien
+    "⚡  Relancer : {a}": "⚡  Run again: {a}",
+    "Mise à jour disponible": "Update available",
+    "Vous aimez DCIM Sorter ?": "Enjoying DCIM Sorter?",
+    "☕  Vous aimez DCIM Sorter ?": "☕  Enjoying DCIM Sorter?",
+    "Cette application est gratuite et open source, développée sur le temps libre de son créateur.\n\nSi elle vous fait gagner du temps, un petit café sur Ko-fi l'aide à continuer — merci !": "This app is free and open source, built in its creator's spare time.\n\nIf it saves you time, a small coffee on Ko-fi helps keep it going — thank you!",
+    "Ne plus me le demander": "Don't ask me again",
+    "Plus tard": "Later",
+    "Téléphone reconnecté": "Phone reconnected",
+    "{d} est de retour.": "{d} is back.",
+    "L'import « {a} » a été interrompu par la déconnexion. Le reprendre maintenant ?\n\nLes fichiers déjà transférés ne seront pas retransférés.": "The “{a}” import was interrupted by the disconnection. Resume it now?\n\nAlready-transferred files will not be transferred again.",
+    "Reprendre": "Resume",
     # __EN_MORE__
 }
+
+
+def _dev_key(device: str) -> str:
+    return device.replace("/", "_").replace("\\", "_")
+
+
+def get_last_action(device: str) -> str:
+    return _s().value(f"last_action/{_dev_key(device)}", "")
+
+
+def set_last_action(device: str, mode: str):
+    _s().setValue(f"last_action/{_dev_key(device)}", mode)
+
+
+def get_usage_count() -> int:
+    try:
+        return int(_s().value("usage_count", 0))
+    except Exception:
+        return 0
+
+
+def bump_usage_count() -> int:
+    n = get_usage_count() + 1
+    _s().setValue("usage_count", n)
+    return n
+
+
+def get_support_optout() -> bool:
+    return _s().value("support_optout", "false") in (True, "true", "1")
+
+
+def set_support_optout(v: bool):
+    _s().setValue("support_optout", "true" if v else "false")
 
 
 def get_notify_end() -> bool:
@@ -4386,6 +4432,7 @@ class _DoneBanner(QWidget):
 class UsbImportView(QWidget):
     options_requested  = pyqtSignal()
     import_finished    = pyqtSignal()
+    notify             = pyqtSignal(str, str)   # titre, détail (toast Windows)
 
     _SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
     _USB_ALL_LABEL = property(lambda self: L("Tous les dossiers"))
@@ -4474,7 +4521,13 @@ class UsbImportView(QWidget):
 
         src_lay.addWidget(self._subdir_box, 0, 0)
         src_lay.addWidget(self._lbl_count,  0, 1)
-        src_lay.setColumnStretch(2, 1)
+        # Raccourci « un clic » : relance la dernière action utilisée
+        # avec cet appareil (mémorisée par appareil).
+        self._last_chip = SmallButton("")
+        self._last_chip.setVisible(False)
+        self._last_chip.clicked.connect(self._run_last_action)
+        src_lay.addWidget(self._last_chip, 0, 2)
+        src_lay.setColumnStretch(3, 1)
 
         # Filtre par date (MTP uniquement), sous le sélecteur
         self._date_row = QWidget()
@@ -4790,6 +4843,32 @@ class UsbImportView(QWidget):
     def _on_count_size(self, total):
         self._total_bytes = int(total or 0)
 
+    def _mode_name(self, mode: str) -> str:
+        return {
+            UsbCopyWorker.MODE_COPY:        L("Copier"),
+            UsbCopyWorker.MODE_COPY_MOVE:   L("Copier + Déplacer"),
+            UsbCopyWorker.MODE_COPY_DELETE: L("Copier + Supprimer"),
+            UsbCopyWorker.MODE_DRY_RUN:     L("Simulation"),
+        }.get(mode, mode)
+
+    def _update_last_chip(self):
+        """Affiche « ⚡ Relancer : <action> » si on connaît cet appareil."""
+        mode = get_last_action(self._drive) if self._drive else ""
+        busy = self._worker is not None and self._worker.isRunning()
+        known = mode in (UsbCopyWorker.MODE_COPY, UsbCopyWorker.MODE_COPY_MOVE,
+                         UsbCopyWorker.MODE_COPY_DELETE)
+        if known and not busy and self._pending_count() > 0:
+            self._last_chip.setText(
+                L("⚡  Relancer : {a}").format(a=self._mode_name(mode)))
+            self._last_chip.setVisible(True)
+        else:
+            self._last_chip.setVisible(False)
+
+    def _run_last_action(self):
+        mode = get_last_action(self._drive) if self._drive else ""
+        if mode:
+            self._start(mode)
+
     def _begin_scan(self):
         """Réinitialise l'affichage des compteurs avant un nouveau scan."""
         self._scanning     = True
@@ -4884,6 +4963,7 @@ class UsbImportView(QWidget):
         self._lbl_spinner.setStyleSheet("font-size: 12pt;")
         self._file_count = count
         self._update_counts_ui()
+        self._update_last_chip()
 
     def is_importing(self) -> bool:
         return (self._source == 'mtp' and
@@ -4891,6 +4971,7 @@ class UsbImportView(QWidget):
                 self._worker.isRunning())
 
     def notify_mtp_disconnected(self):
+        self._was_interrupted = True
         t = T()
         self._action_lbl.setText(L("⚠  Téléphone déconnecté — import interrompu"))
         self._action_lbl.setStyleSheet(
@@ -4982,6 +5063,10 @@ class UsbImportView(QWidget):
             if dlg.exec() != QMessageBox.StandardButton.Yes:
                 return
         self._last_mode = mode
+        self._was_interrupted = False
+        if self._drive:
+            set_last_action(self._drive, mode)
+        self._last_chip.setVisible(False)
         log.info("Import démarré — source=%s mode=%s target=%s",
                  self._source, mode, get_usb_target())
         self._progress_area.setVisible(True)
@@ -5218,6 +5303,7 @@ class UsbImportView(QWidget):
 
         self._set_buttons_enabled(True)
         self._btn_stop.setVisible(False)
+        self._update_last_chip()
         if self._active_btn:
             self._active_btn.setActive(False)
             self._active_btn = None
@@ -5246,10 +5332,12 @@ class UsbImportView(QWidget):
         self.import_finished.emit()
         self._prog_bar_inner.setFixedWidth(self._prog_bar.width())
 
-        # Notification sonore + visuelle
+        # Notification sonore + toast (selon les Options)
+        self.notify.emit(title, stats)
         try:
-            import winsound
-            winsound.MessageBeep(winsound.MB_ICONINFORMATION)
+            if get_sound_end():
+                import winsound
+                winsound.MessageBeep(winsound.MB_ICONINFORMATION)
         except Exception:
             pass
         try:
@@ -5966,6 +6054,28 @@ class TitleBar(QWidget):
         p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
 
 
+class _UpdateCheckWorker(QThread):
+    """Compare VERSION à la dernière release GitHub (silencieux en échec)."""
+    found = pyqtSignal(str, str)   # version, url
+
+    _API = "https://api.github.com/repos/hypedigger/DCIM-Sorter/releases/latest"
+
+    def run(self):
+        try:
+            import json as _json
+            import urllib.request
+            req = urllib.request.Request(
+                self._API, headers={"User-Agent": f"DCIM-Sorter/{VERSION}"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+            tag = str(data.get("tag_name", "")).lstrip("vV")
+            url = data.get("html_url") or "https://github.com/hypedigger/DCIM-Sorter/releases"
+            if tag and int(tag.split(".")[0]) > VERSION:
+                self.found.emit(tag, url)
+        except Exception:
+            pass   # hors-ligne, limite d'API… : on réessaiera au prochain lancement
+
+
 # ── Main Window ────────────────────────────────────────────────────────────
 
 class MainWindow(QMainWindow):
@@ -6000,6 +6110,23 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(200, self._poll_usb)
         # Premier scan téléphone immédiat (sinon ~10 s d'attente au démarrage)
         QTimer.singleShot(400, self._launch_mtp_scan)
+
+        # Icône de zone de notification (sert aux toasts de fin d'import)
+        self._tray = QSystemTrayIcon(create_app_icon(), self)
+        self._tray.setToolTip(APP_NAME)
+        self._tray.show()
+        self._usb_view.notify.connect(self._show_toast)
+        self._mtp_view.notify.connect(self._show_toast)
+
+        # Vérification de mise à jour (GitHub), discrète et silencieuse en échec
+        self._upd_worker: _UpdateCheckWorker | None = None
+        QTimer.singleShot(3000, self._check_updates)
+
+        # Compteur d'utilisations → pop-up de soutien (10e puis toutes les 100)
+        n_uses = bump_usage_count()
+        if not get_support_optout() and (n_uses == 10 or
+                                         (n_uses >= 100 and n_uses % 100 == 0)):
+            QTimer.singleShot(2500, self._show_support_popup)
 
     def _tick_bg(self):
         self._bg_phase = (self._bg_phase + 0.0018) % 1.0
@@ -6062,6 +6189,12 @@ class MainWindow(QMainWindow):
         self._ghost_tab.setVisible(False)
         tab_row.addWidget(self._ghost_tab)
         tab_row.addStretch()
+        self._update_lbl = QLabel("")
+        self._update_lbl.setVisible(False)
+        self._update_lbl.setOpenExternalLinks(True)
+        self._update_lbl.setStyleSheet("font-size: 9pt; background: transparent;")
+        tab_row.addWidget(self._update_lbl)
+        tab_row.addSpacing(8)
         self._scan_timer = QTimer(self)
         self._scan_timer.setInterval(400)
         self._scan_timer.timeout.connect(self._tick_scan_indicator)
@@ -6124,6 +6257,55 @@ class MainWindow(QMainWindow):
         self._tab_usb_btn.set_active(idx == 1)
         self._tab_mtp_btn.set_active(idx == 2)
 
+    def _show_toast(self, title: str, body: str):
+        """Toast Windows en fin d'import — seulement si la fenêtre n'est pas
+        au premier plan (sinon le bandeau suffit)."""
+        if not get_notify_end() or self.isActiveWindow():
+            return
+        try:
+            self._tray.showMessage(title, body,
+                                   QSystemTrayIcon.MessageIcon.Information,
+                                   6000)
+        except Exception:
+            pass
+
+    def _check_updates(self):
+        if self._upd_worker is not None and self._upd_worker.isRunning():
+            return
+        self._upd_worker = _UpdateCheckWorker()
+        self._upd_worker.found.connect(self._on_update_found)
+        self._upd_worker.start()
+
+    def _on_update_found(self, version: str, url: str):
+        accent = T()['a1']
+        label  = L("Mise à jour disponible")
+        self._update_lbl.setText(
+            f"<a href='{url}' style='color:{accent};"
+            f" text-decoration:none;'>⬆  {label} (v{version})</a>")
+        self._update_lbl.setVisible(True)
+
+    def _show_support_popup(self):
+        """Invitation Ko-fi — fermable d'un clic, avec opt-out définitif."""
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(L("Vous aimez DCIM Sorter ?"))
+        dlg.setIcon(QMessageBox.Icon.NoIcon)
+        dlg.setText(L("☕  Vous aimez DCIM Sorter ?"))
+        dlg.setInformativeText(
+            L("Cette application est gratuite et open source, développée sur "
+              "le temps libre de son créateur.\n\nSi elle vous fait gagner "
+              "du temps, un petit café sur Ko-fi l'aide à continuer — merci !"))
+        cb = QCheckBox(L("Ne plus me le demander"))
+        dlg.setCheckBox(cb)
+        btn_kofi  = dlg.addButton(L("☕  Soutenir sur Ko-fi"),
+                                  QMessageBox.ButtonRole.AcceptRole)
+        dlg.addButton(L("Plus tard"), QMessageBox.ButtonRole.RejectRole)
+        dlg.setDefaultButton(btn_kofi)
+        dlg.exec()
+        if cb.isChecked():
+            set_support_optout(True)
+        if dlg.clickedButton() is btn_kofi:
+            open_kofi()
+
     def _tick_scan_indicator(self):
         if self._tab_mtp_btn.isVisible():
             self._ghost_tab.stop()
@@ -6171,6 +6353,35 @@ class MainWindow(QMainWindow):
             self._tab_mtp_btn.setText(f"📱  {device_name[:20]}")
             self._tab_mtp_btn.setVisible(True)
             self._mtp_view.refresh_mtp(device_name)
+            if getattr(self._mtp_view, '_was_interrupted', False):
+                QTimer.singleShot(1200,
+                                  lambda d=device_name: self._offer_resume(d))
+
+    def _offer_resume(self, device_name: str):
+        """Le téléphone est revenu après une interruption : proposer de reprendre."""
+        view = self._mtp_view
+        if not getattr(view, '_was_interrupted', False) or view.is_importing():
+            return
+        view._was_interrupted = False
+        mode = view._last_mode
+        if mode not in (UsbCopyWorker.MODE_COPY, UsbCopyWorker.MODE_COPY_MOVE,
+                        UsbCopyWorker.MODE_COPY_DELETE):
+            return
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(L("Téléphone reconnecté"))
+        dlg.setIcon(QMessageBox.Icon.Question)
+        dlg.setText(L("{d} est de retour.").format(d=device_name))
+        dlg.setInformativeText(
+            L("L'import « {a} » a été interrompu par la déconnexion. "
+              "Le reprendre maintenant ?\n\nLes fichiers déjà transférés "
+              "ne seront pas retransférés.").format(a=view._mode_name(mode)))
+        yes = dlg.addButton(L("Reprendre"), QMessageBox.ButtonRole.AcceptRole)
+        dlg.addButton(L("Plus tard"), QMessageBox.ButtonRole.RejectRole)
+        dlg.setDefaultButton(yes)
+        dlg.exec()
+        if dlg.clickedButton() is yes:
+            self._switch_tab(2)
+            view._start(mode)
 
     def _on_mtp_not_found(self):
         if self._mtp_state is not None:
