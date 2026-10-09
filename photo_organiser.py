@@ -1190,8 +1190,9 @@ def _mtp_ensure_child_folder(parts: list[str], name: str):
     return None
 
 
-def find_mtp_camera() -> tuple[str, str] | None:
-    """Retourne (nom_appareil, 'MTP') si un téléphone avec DCIM est connecté en MTP."""
+def find_mtp_cameras() -> list[str]:
+    """Noms de tous les téléphones MTP branchés qui exposent un DCIM."""
+    names: list[str] = []
     try:
         import pythoncom
         pythoncom.CoInitialize()
@@ -1199,19 +1200,25 @@ def find_mtp_camera() -> tuple[str, str] | None:
             try:
                 for root_item in dev_item.GetFolder.Items():
                     if _mtp_find_dcim_paths(root_item, [dev_item.Name]):
-                        log.info("MTP DCIM trouvé sur : %s", dev_item.Name)
-                        return (dev_item.Name, 'MTP')
+                        names.append(dev_item.Name)
+                        break
             except Exception:
                 continue
     except Exception:
-        log.exception("find_mtp_camera exception")
+        log.exception("find_mtp_cameras exception")
     finally:
         try:
             import pythoncom
             pythoncom.CoUninitialize()
         except Exception:
             pass
-    return None
+    return names
+
+
+def find_mtp_camera() -> tuple[str, str] | None:
+    """Retourne (nom_appareil, 'MTP') si un téléphone avec DCIM est connecté en MTP."""
+    names = find_mtp_cameras()
+    return (names[0], 'MTP') if names else None
 
 
 def apply_theme(key: str | None = None):
@@ -3658,19 +3665,14 @@ class _UsbCountWorker(QThread):
 # ── MTP Scan Worker (détection appareil) ────────────────────────────────────
 
 class _MtpScanWorker(QThread):
-    found     = pyqtSignal(str)   # device_name
-    not_found = pyqtSignal()
+    devices = pyqtSignal(list)   # noms de tous les téléphones détectés
 
     def run(self):
         try:
-            result = find_mtp_camera()
-            if result:
-                self.found.emit(result[0])
-            else:
-                self.not_found.emit()
+            self.devices.emit(find_mtp_cameras())
         except Exception:
             log.exception("_MtpScanWorker exception")
-            self.not_found.emit()
+            self.devices.emit([])
 
 
 # ── MTP : chemin par défaut (DCIM/Camera) ───────────────────────────────────
@@ -6103,10 +6105,11 @@ class MainWindow(QMainWindow):
         self._usb_timer.timeout.connect(self._poll_usb)
         self._usb_timer.start(2000)
         self._usb_state: tuple[str, str] | None = None
-        self._mtp_state: str | None = None
+        # Téléphones branchés : nom d'appareil → (bouton d'onglet, vue)
+        self._phones: dict[str, tuple] = {}
+        self._last_phone_scan: set[str] = set()
         self._mtp_poll_counter   = 0
         self._mtp_scan_worker: object | None = None
-        self._mtp_disconnected_during_import = False
         QTimer.singleShot(200, self._poll_usb)
         # Premier scan téléphone immédiat (sinon ~10 s d'attente au démarrage)
         QTimer.singleShot(400, self._launch_mtp_scan)
@@ -6116,7 +6119,6 @@ class MainWindow(QMainWindow):
         self._tray.setToolTip(APP_NAME)
         self._tray.show()
         self._usb_view.notify.connect(self._show_toast)
-        self._mtp_view.notify.connect(self._show_toast)
 
         # Vérification de mise à jour (GitHub), discrète et silencieuse en échec
         self._upd_worker: _UpdateCheckWorker | None = None
@@ -6172,17 +6174,13 @@ class MainWindow(QMainWindow):
         self._tab_sort_btn = _TabButton(L("📂  Trier par date"))
         self._tab_usb_btn  = _TabButton(L("💾  Carte SD"))
         self._tab_usb_btn.setVisible(False)
-        self._tab_mtp_btn  = _TabButton(L("📱  Téléphone"))
-        self._tab_mtp_btn.setVisible(False)
-
         self._tab_sort_btn.clicked.connect(lambda: self._switch_tab(0))
         self._tab_usb_btn.clicked.connect(lambda: self._switch_tab(1))
-        self._tab_mtp_btn.clicked.connect(lambda: self._switch_tab(2))
 
         tab_row.addWidget(self._tab_sort_btn)
         tab_row.addWidget(self._tab_usb_btn)
-        tab_row.addWidget(self._tab_mtp_btn)
         tab_row.addSpacing(8)
+        self._tab_row = tab_row   # les onglets téléphone s'insèrent ici
         # Tant qu'aucun appareil n'est branché : onglet fantôme animé, à
         # l'endroit où l'onglet de l'appareil apparaîtra.
         self._ghost_tab = _GhostTab()
@@ -6217,8 +6215,7 @@ class MainWindow(QMainWindow):
         # Tab 1 : import USB
         self._usb_view = UsbImportView()
         self._outer_stack.addWidget(self._usb_view)  # tab 1
-        self._mtp_view = UsbImportView()
-        self._outer_stack.addWidget(self._mtp_view)  # tab 2
+        # Les vues téléphone (une par appareil) sont ajoutées dynamiquement
 
         lay.addWidget(self._outer_stack)
 
@@ -6237,25 +6234,39 @@ class MainWindow(QMainWindow):
         self._folder_view.browse_requested.connect(self._browse)
         self._folder_view.options_opened.connect(self._open_options)
         self._usb_view.options_requested.connect(lambda: self._open_options(tab=1))
-        self._mtp_view.options_requested.connect(lambda: self._open_options(tab=1))
-        self._mtp_view.import_finished.connect(self._on_import_finished)
         self._folder_view.about_opened.connect(self._open_about)
         self._process_view.done.connect(self._show_summary)
         self._summary_view.back.connect(self._back_to_list)
 
     def _on_import_finished(self):
-        if self._mtp_disconnected_during_import:
-            self._mtp_disconnected_during_import = False
-            if self._mtp_state is None:
-                self._tab_mtp_btn.setVisible(False)
-                if self._outer_stack.currentIndex() == 2:
-                    self._switch_tab(1 if self._usb_state else 0)
+        # Un import vient de se terminer : retire les onglets des téléphones
+        # qui ont été débranchés entre-temps (sauf reprise en attente).
+        self._prune_phones()
 
     def _switch_tab(self, idx: int):
         self._outer_stack.switch_to(idx)
-        self._tab_sort_btn.set_active(idx == 0)
-        self._tab_usb_btn.set_active(idx == 1)
-        self._tab_mtp_btn.set_active(idx == 2)
+        self._refresh_tab_actives()
+
+    def _switch_to_widget(self, w):
+        idx = self._outer_stack.indexOf(w)
+        if idx >= 0:
+            self._switch_tab(idx)
+
+    def _refresh_tab_actives(self):
+        cur = self._outer_stack.currentWidget()
+        self._tab_sort_btn.set_active(cur is self._stack)
+        self._tab_usb_btn.set_active(cur is self._usb_view)
+        for btn, view in self._phones.values():
+            btn.set_active(cur is view)
+
+    def _fallback_tab(self):
+        """Bascule vers un onglet encore présent."""
+        if self._usb_state:
+            self._switch_to_widget(self._usb_view)
+        elif self._phones:
+            self._switch_to_widget(next(iter(self._phones.values()))[1])
+        else:
+            self._switch_tab(0)
 
     def _show_toast(self, title: str, body: str):
         """Toast Windows en fin d'import — seulement si la fenêtre n'est pas
@@ -6307,7 +6318,7 @@ class MainWindow(QMainWindow):
             open_kofi()
 
     def _tick_scan_indicator(self):
-        if self._tab_mtp_btn.isVisible():
+        if self._phones:
             self._ghost_tab.stop()
             return
         self._ghost_tab.set_text(
@@ -6329,8 +6340,8 @@ class MainWindow(QMainWindow):
                     self._usb_view.refresh_usb(drive, dcim)
                 else:
                     self._tab_usb_btn.setVisible(False)
-                    if self._outer_stack.currentIndex() == 1:
-                        self._switch_tab(2 if self._mtp_state else 0)
+                    if self._outer_stack.currentWidget() is self._usb_view:
+                        self._fallback_tab()
         except Exception:
             log.exception("_poll_usb exception")
 
@@ -6342,24 +6353,80 @@ class MainWindow(QMainWindow):
     def _launch_mtp_scan(self):
         if self._mtp_scan_worker is None or not self._mtp_scan_worker.isRunning():
             self._mtp_scan_worker = _MtpScanWorker()
-            self._mtp_scan_worker.found.connect(self._on_mtp_found)
-            self._mtp_scan_worker.not_found.connect(self._on_mtp_not_found)
+            self._mtp_scan_worker.devices.connect(self._on_mtp_scan)
             self._mtp_scan_worker.start()
 
-    def _on_mtp_found(self, device_name: str):
-        if self._mtp_state != device_name:
-            self._mtp_state = device_name
-            log.info("Téléphone MTP détecté : %s", device_name)
-            self._tab_mtp_btn.setText(f"📱  {device_name[:20]}")
-            self._tab_mtp_btn.setVisible(True)
-            self._mtp_view.refresh_mtp(device_name)
-            if getattr(self._mtp_view, '_was_interrupted', False):
-                QTimer.singleShot(1200,
-                                  lambda d=device_name: self._offer_resume(d))
+    def _on_mtp_scan(self, devices: list):
+        """Résultat du scan : ouvre/ferme les onglets téléphone."""
+        now = set(devices)
+        self._last_phone_scan = now
+
+        # Nouveaux appareils → nouvel onglet + vue dédiée
+        for dev in devices:
+            if dev in self._phones:
+                view = self._phones[dev][1]
+                # L'appareil revient après une interruption d'import
+                if (getattr(view, '_was_interrupted', False)
+                        and not view.is_importing()
+                        and not getattr(view, '_resume_offered', False)):
+                    view._resume_offered = True
+                    view.refresh_mtp(dev)
+                    QTimer.singleShot(1200, lambda d=dev: self._offer_resume(d))
+                continue
+            log.info("Téléphone MTP détecté : %s", dev)
+            btn  = _TabButton(f"📱  {dev[:20]}")
+            view = UsbImportView()
+            view.options_requested.connect(lambda: self._open_options(tab=1))
+            view.import_finished.connect(self._on_import_finished)
+            view.notify.connect(self._show_toast)
+            self._outer_stack.addWidget(view)
+            ghost_idx = self._tab_row.indexOf(self._ghost_tab)
+            self._tab_row.insertWidget(ghost_idx, btn)
+            btn.clicked.connect(lambda _=False, v=view: self._switch_to_widget(v))
+            self._phones[dev] = (btn, view)
+            view.refresh_mtp(dev)
+
+        # Appareils disparus → notifier si import en cours, sinon fermer
+        for dev in list(self._phones):
+            if dev in now:
+                continue
+            btn, view = self._phones[dev]
+            if view.is_importing():
+                if not getattr(view, '_was_interrupted', False):
+                    log.info("Téléphone MTP déconnecté pendant import : %s", dev)
+                    view.notify_mtp_disconnected()
+                continue
+            if getattr(view, '_was_interrupted', False):
+                continue   # onglet conservé pour proposer la reprise au retour
+            self._remove_phone(dev)
+        self._refresh_tab_actives()
+
+    def _remove_phone(self, dev: str):
+        btn, view = self._phones.pop(dev, (None, None))
+        if view is None:
+            return
+        log.info("Téléphone MTP déconnecté : %s", dev)
+        if self._outer_stack.currentWidget() is view:
+            self._fallback_tab()
+        self._outer_stack.removeWidget(view)
+        btn.setParent(None)
+        btn.deleteLater()
+        view.deleteLater()
+
+    def _prune_phones(self):
+        now = getattr(self, '_last_phone_scan', set())
+        for dev in list(self._phones):
+            btn, view = self._phones[dev]
+            if (dev not in now and not view.is_importing()
+                    and not getattr(view, '_was_interrupted', False)):
+                self._remove_phone(dev)
 
     def _offer_resume(self, device_name: str):
         """Le téléphone est revenu après une interruption : proposer de reprendre."""
-        view = self._mtp_view
+        if device_name not in self._phones:
+            return
+        view = self._phones[device_name][1]
+        view._resume_offered = False
         if not getattr(view, '_was_interrupted', False) or view.is_importing():
             return
         view._was_interrupted = False
@@ -6380,20 +6447,11 @@ class MainWindow(QMainWindow):
         dlg.setDefaultButton(yes)
         dlg.exec()
         if dlg.clickedButton() is yes:
-            self._switch_tab(2)
+            self._switch_to_widget(view)
             view._start(mode)
-
-    def _on_mtp_not_found(self):
-        if self._mtp_state is not None:
-            self._mtp_state = None
-            log.info("Téléphone MTP déconnecté")
-            if self._mtp_view.is_importing():
-                self._mtp_disconnected_during_import = True
-                self._mtp_view.notify_mtp_disconnected()
-            else:
-                self._tab_mtp_btn.setVisible(False)
-                if self._outer_stack.currentIndex() == 2:
-                    self._switch_tab(1 if self._usb_state else 0)
+        elif not getattr(view, '_was_interrupted', False):
+            # refus : l'onglet redevient un onglet normal
+            view._resume_offered = False
 
     def _do_organise(self, data: dict):
         self._stack.switch_to(1)
