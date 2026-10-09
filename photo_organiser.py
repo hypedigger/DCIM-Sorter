@@ -776,6 +776,19 @@ _EN: dict[str, str] = {
     "Sélectionner ExifTool": "Pick ExifTool",
     "Exécutables (*.exe);;Tous (*.*)": "Executables (*.exe);;All (*.*)",
     "La nouvelle langue sera appliquée au prochain démarrage de l'application.": "The new language will be applied the next time you start the application.",
+    # Espace disque
+    "Espace disque insuffisant": "Not enough disk space",
+    "L'import représente {need} mais il ne reste que {free} sur {target}.\n\nLibérez de l'espace ou changez le dossier de destination dans les Options, puis réessayez.": "The import needs {need} but only {free} is left on {target}.\n\nFree some space or change the destination folder in Options, then try again.",
+    # Sonde / reprise / vidéos
+    "Vérification de l'accès en écriture…": "Checking write access…",
+    "Import annulé — le support refuse les écritures (écran du téléphone verrouillé ?)": "Import cancelled — the device refuses writes (phone screen locked?)",
+    "Reprise : {n} fichiers déjà transférés retrouvés": "Resuming: {n} already-transferred files found",
+    "{n} fichiers transférés conservés — ils seront repris au prochain import": "{n} transferred files kept — they will be reused on the next import",
+    "Téléphone verrouillé ?": "Phone locked?",
+    "Le téléphone refuse les écritures.": "The phone refuses writes.",
+    "C'est généralement le cas quand son écran est verrouillé.\n\nDéverrouillez l'écran du téléphone, puis cliquez sur Réessayer — ou annulez l'import (rien n'a été modifié).": "This usually happens when its screen is locked.\n\nUnlock the phone's screen, then click Retry — or cancel the import (nothing has been changed).",
+    "Réessayer": "Retry",
+    "Annuler l'import": "Cancel the import",
     # __EN_MORE__
 }
 
@@ -1037,8 +1050,13 @@ def _mtp_children(parts: list[str]) -> list[dict]:
     return out
 
 
-def _mtp_media_names(parts: list[str], stop=None, on_progress=None) -> list[str]:
-    """Noms des photos/vidéos contenues directement dans un dossier MTP."""
+def _mtp_media_names(parts: list[str], stop=None, on_progress=None,
+                     size_acc: list | None = None) -> list[str]:
+    """Noms des photos/vidéos contenues directement dans un dossier MTP.
+
+    Si `size_acc` est fourni (liste à un élément), la taille totale en octets
+    y est cumulée.
+    """
     item = _mtp_resolve_path(parts)
     if item is None:
         return []
@@ -1050,6 +1068,11 @@ def _mtp_media_names(parts: list[str], stop=None, on_progress=None) -> list[str]
                 break
             if not sub.IsFolder and Path(sub.Name).suffix.lower() in all_ext:
                 found.append(sub.Name)
+                if size_acc is not None:
+                    try:
+                        size_acc[0] += int(sub.Size)
+                    except Exception:
+                        pass
                 if on_progress is not None:
                     on_progress(len(found))
     except Exception:
@@ -1373,8 +1396,12 @@ class OrganiseWorker(QThread):
             date = None
 
             if ext in VIDEO_EXT:
-                s    = f.stat()
-                date = datetime.fromtimestamp(min(s.st_ctime, s.st_mtime))
+                # Métadonnées QuickTime d'abord : la date fichier est souvent
+                # fausse après un transfert
+                date = _exif_date(self.exif_cmd, f)
+                if not date:
+                    s    = f.stat()
+                    date = datetime.fromtimestamp(min(s.st_ctime, s.st_mtime))
             else:  # photos + formats extra → EXIF d'abord, fallback date fichier
                 date = self._photo_date(f)
                 if not date:
@@ -1586,10 +1613,11 @@ class UsbCopyWorker(QThread):
     def _batch_get_dates(self, files: list[Path]) -> dict[str, datetime | None]:
         """Lecture EXIF en batch (un seul processus exiftool pour tous les fichiers photo)."""
         dates: dict[str, datetime | None] = {}
-        photo_files = [f for f in files if f.suffix.lower() not in VIDEO_EXT]
+        photo_files = list(files)
         video_files = [f for f in files if f.suffix.lower() in VIDEO_EXT]
 
-        # Vidéos : date filesystem (pas besoin d'exiftool)
+        # Vidéos : date filesystem en secours (écrasée si exiftool trouve
+        # une vraie date de prise de vue dans les métadonnées QuickTime)
         for f in video_files:
             try:
                 s = f.stat()
@@ -1597,7 +1625,7 @@ class UsbCopyWorker(QThread):
             except Exception:
                 dates[str(f.resolve())] = None
 
-        # Photos : appels batch par chunks
+        # Tous les fichiers : appels batch par chunks
         total_chunks = max(1, (len(photo_files) + self._EXIF_CHUNK - 1) // self._EXIF_CHUNK)
         for ci, start in enumerate(range(0, len(photo_files), self._EXIF_CHUNK)):
             if self._stop:
@@ -1608,8 +1636,9 @@ class UsbCopyWorker(QThread):
                     a=ci + 1, b=total_chunks))
             try:
                 r = subprocess.run(
-                    [self.exif_cmd, '-json', '-d', '%Y-%m-%d %H:%M:%S',
-                     '-DateTimeOriginal', '-CreateDate', '-q',
+                    [self.exif_cmd, '-json', '-api', 'QuickTimeUTC=1',
+                     '-d', '%Y-%m-%d %H:%M:%S',
+                     '-DateTimeOriginal', '-CreateDate', '-MediaCreateDate', '-q',
                      *[str(f) for f in chunk]],
                     capture_output=True, text=True, timeout=60,
                     creationflags=subprocess.CREATE_NO_WINDOW
@@ -1617,7 +1646,9 @@ class UsbCopyWorker(QThread):
                 data = json.loads(r.stdout) if r.stdout.strip() else []
                 for item in data:
                     src_key = str(Path(item.get('SourceFile', '')).resolve())
-                    dt_str  = item.get('DateTimeOriginal') or item.get('CreateDate')
+                    dt_str  = (item.get('DateTimeOriginal')
+                               or item.get('CreateDate')
+                               or item.get('MediaCreateDate'))
                     if dt_str and not str(dt_str).startswith('0000'):
                         try:
                             dates[src_key] = datetime.strptime(str(dt_str), "%Y-%m-%d %H:%M:%S")
@@ -1883,6 +1914,31 @@ def _date_from_filename(name: str) -> datetime | None:
     return None
 
 
+def _exif_date(exif_cmd: str, path: Path) -> datetime | None:
+    """Date de prise de vue via exiftool — photos ET vidéos (tags QuickTime).
+
+    Les dates QuickTime sont stockées en UTC : l'API QuickTimeUTC les
+    convertit en heure locale. Retourne None si aucune date exploitable.
+    """
+    try:
+        r = subprocess.run(
+            [exif_cmd, '-api', 'QuickTimeUTC=1',
+             '-DateTimeOriginal', '-CreateDate', '-MediaCreateDate',
+             '-s', '-s', '-s', '-d', '%Y-%m-%d %H:%M:%S', str(path)],
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+        for line in r.stdout.strip().splitlines():
+            line = line.strip()
+            if line and not line.startswith('0000'):
+                try:
+                    return datetime.strptime(line, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    pass
+    except Exception:
+        pass
+    return None
+
+
 def _fmt_eta(seconds: float) -> str:
     s = max(0, int(seconds))
     return f"{s // 60} min {s % 60:02d}" if s >= 60 else f"{s} s"
@@ -1908,6 +1964,7 @@ class MtpCopyWorker(QThread):
     progress   = pyqtSignal(int, int)       # current, total
     done       = pyqtSignal(int, int, int, float)
     ask_slow_move = pyqtSignal(int)         # n fichiers — demande continuer/arrêter
+    write_blocked = pyqtSignal()            # le support refuse les écritures
 
     MODE_COPY        = 'copy'
     MODE_COPY_DELETE = 'copy_delete'
@@ -1929,6 +1986,46 @@ class MtpCopyWorker(QThread):
         self._stop      = False
         self._slow_move_reply = threading.Event()
         self._slow_move_ok    = False
+        self._probe_reply     = threading.Event()
+        self._probe_retry     = False
+
+    def reply_write_blocked(self, retry: bool):
+        """Réponse de l'utilisateur au dialogue « écritures refusées »."""
+        self._probe_retry = retry
+        self._probe_reply.set()
+
+    def _probe_write(self) -> bool:
+        """Le support accepte-t-il les écritures ? (création d'un dossier test)
+
+        Samsung et d'autres téléphones refusent toute écriture MTP quand
+        l'écran est verrouillé : on le détecte AVANT de copier pendant de
+        longues minutes, pas après.
+        """
+        import time as _time
+        name = f".ds_probe_{int(_time.time())}"
+        probe = _mtp_ensure_child_folder(self._dcim_root_parts(), name)
+        if probe is None:
+            return False
+        try:
+            fo = _mtp_new_fileop()
+            fo.DeleteItem(_mtp_shell_item(probe), None)
+            fo.PerformOperations()
+        except Exception:
+            pass
+        return True
+
+    def _ensure_writable(self) -> bool:
+        """Boucle sonde + dialogue Réessayer/Annuler. False = abandon."""
+        while not self._stop:
+            self.batch_info.emit(L("Vérification de l'accès en écriture…"))
+            if self._probe_write():
+                return True
+            self._probe_reply.clear()
+            self.write_blocked.emit()
+            self._probe_reply.wait()
+            if self._stop or not self._probe_retry:
+                return False
+        return False
 
     def reply_slow_move(self, accept: bool):
         """Réponse de l'utilisateur au dialogue « rangement lent »."""
@@ -2126,32 +2223,21 @@ class MtpCopyWorker(QThread):
     def stop(self):
         self._stop = True
         self._slow_move_reply.set()   # débloque une éventuelle question en attente
+        self._probe_reply.set()
 
     def _date_from_name(self, name: str) -> datetime | None:
         return _date_from_filename(name)
 
     def _get_date_exif(self, path: Path) -> datetime | None:
+        date = _exif_date(self.exif_cmd, path)
+        if date:
+            return date
         if path.suffix.lower() in VIDEO_EXT:
             try:
                 s = path.stat()
                 return datetime.fromtimestamp(min(s.st_ctime, s.st_mtime))
             except Exception:
                 return None
-        try:
-            r = subprocess.run(
-                [self.exif_cmd, '-DateTimeOriginal', '-CreateDate',
-                 '-s', '-s', '-s', '-d', '%Y-%m-%d %H:%M:%S', str(path)],
-                capture_output=True, text=True, timeout=10,
-                creationflags=subprocess.CREATE_NO_WINDOW)
-            for line in r.stdout.strip().splitlines():
-                line = line.strip()
-                if line and not line.startswith('0000'):
-                    try:
-                        return datetime.strptime(line, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        pass
-        except Exception:
-            pass
         return self._date_from_name(path.name)
 
     def _unique_dest(self, dest: Path) -> Path:
@@ -2235,6 +2321,16 @@ class MtpCopyWorker(QThread):
             self.done.emit(0, len(sim), 0, elapsed)
             return
 
+        # Les modes qui modifient le support exigent que le téléphone accepte
+        # les écritures — sonde immédiate plutôt qu'un échec en fin d'import.
+        if self.mode in (self.MODE_COPY_DELETE, self.MODE_COPY_MOVE):
+            if not self._ensure_writable():
+                self.log_entry.emit('skip',
+                    L("Import annulé — le support refuse les écritures "
+                      "(écran du téléphone verrouillé ?)"))
+                self.done.emit(0, 0, 0, 0.0)
+                return
+
         # ── Phase 1 : batch copy MTP → dossier temporaire ────────────────────
         temp_dir = Path(self.target) / "._mtp_import_temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -2243,11 +2339,36 @@ class MtpCopyWorker(QThread):
         self.log_entry.emit('new',
             L("Phase 1 : copie {n} fichiers depuis le téléphone…").format(n=total_mtp))
 
+        # Reprise : les fichiers d'un import interrompu attendent dans le
+        # dossier temporaire — on ne les retransfère pas depuis le téléphone.
+        already_here: set[str] = set()
+        src_sizes: dict[str, int] = {}
+        for it in to_copy:
+            try:
+                src_sizes[it.Name] = int(it.Size)
+            except Exception:
+                src_sizes[it.Name] = -1
+        try:
+            for f in temp_dir.iterdir():
+                if not f.is_file() or f.name not in src_sizes:
+                    continue
+                try:
+                    if src_sizes[f.name] in (-1, f.stat().st_size):
+                        already_here.add(f.name)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        if already_here:
+            self.log_entry.emit('skip',
+                L("Reprise : {n} fichiers déjà transférés retrouvés").format(
+                    n=len(already_here)))
+
         # PerformOperations bloque le thread appelant — thread dédié.
         # IFileOperation en mode silencieux : aucune fenêtre de progression
         # Windows ne s'ouvre (le suivi est affiché par l'appli elle-même).
         _parts = list(self.path_parts)
-        _names = {i.Name for i in to_copy}
+        _names = {i.Name for i in to_copy} - already_here
         _target_str = str(temp_dir)
         copy_done  = threading.Event()
         copy_error: list = [None]
@@ -2365,11 +2486,22 @@ class MtpCopyWorker(QThread):
                 self.log_entry.emit('error', f"{f.name} : {e}")
             self.progress.emit(idx + 1, n_files)
 
-        # Nettoyage dossier temp
-        try:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception:
-            pass
+        # Nettoyage dossier temp — sauf arrêt en cours : les fichiers déjà
+        # transférés serviront de point de reprise au prochain import.
+        if self._stop:
+            try:
+                leftover = sum(1 for f in temp_dir.iterdir() if f.is_file())
+            except Exception:
+                leftover = 0
+            if leftover:
+                self.log_entry.emit('skip',
+                    L("{n} fichiers transférés conservés — ils seront repris "
+                      "au prochain import").format(n=leftover))
+        else:
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
         # Déplacement vers DCIM/_old (mode copy_move) : un seul lot
         # IFileOperation silencieux, uniquement les fichiers importés.
@@ -3436,9 +3568,10 @@ class SummaryView(QWidget):
 # ── USB Count Worker ───────────────────────────────────────────────────────
 
 class _UsbCountWorker(QThread):
-    result   = pyqtSignal(int)   # final count
-    partial  = pyqtSignal(int)   # intermediate updates
-    names    = pyqtSignal(list)  # noms des fichiers trouvés
+    result   = pyqtSignal(int)     # final count
+    partial  = pyqtSignal(int)     # intermediate updates
+    names    = pyqtSignal(list)    # noms des fichiers trouvés
+    size     = pyqtSignal(object)  # taille totale en octets (int)
 
     def __init__(self, dcim_path: str):
         super().__init__()
@@ -3452,6 +3585,7 @@ class _UsbCountWorker(QThread):
         try:
             all_ext = get_all_ext()
             found: list[str] = []
+            total_size = 0
             for root, dirs, files in os.walk(self._dcim):
                 dirs[:] = [d for d in dirs if d.lower() != "_old"]
                 if self._stop:
@@ -3459,8 +3593,13 @@ class _UsbCountWorker(QThread):
                 for fname in files:
                     if os.path.splitext(fname)[1].lower() in all_ext:
                         found.append(fname)
+                        try:
+                            total_size += os.path.getsize(os.path.join(root, fname))
+                        except Exception:
+                            pass
                 self.partial.emit(len(found))
             count = len(found)
+            self.size.emit(total_size)
             log.debug("_UsbCountWorker : %d fichiers dans %s", count, self._dcim)
             self.names.emit(found)
             self.result.emit(count)
@@ -3835,7 +3974,8 @@ class MtpFolderDialog(QDialog):
 class _MtpCountWorker(QThread):
     result  = pyqtSignal(int)
     partial = pyqtSignal(int)
-    names   = pyqtSignal(list)  # noms des fichiers trouvés
+    names   = pyqtSignal(list)    # noms des fichiers trouvés
+    size    = pyqtSignal(object)  # taille totale en octets (int)
 
     def __init__(self, parts: list[str] | None = None):
         super().__init__()
@@ -3850,9 +3990,12 @@ class _MtpCountWorker(QThread):
             import pythoncom
             pythoncom.CoInitialize()
             try:
+                size_acc = [0]
                 found = _mtp_media_names(self._parts,
                                          stop=lambda: self._stop,
-                                         on_progress=self.partial.emit)
+                                         on_progress=self.partial.emit,
+                                         size_acc=size_acc)
+                self.size.emit(size_acc[0])
                 log.debug("_MtpCountWorker : %d fichiers dans %s",
                           len(found), "/".join(self._parts[1:]))
                 self.names.emit(found)
@@ -4256,6 +4399,7 @@ class UsbImportView(QWidget):
         self._source      = 'usb'  # 'usb' ou 'mtp'
         self._file_count   = 0
         self._file_names: list[str] = []
+        self._total_bytes  = 0
         self._path_parts: list[str] = []   # dossier choisi sur le téléphone
         self._usb_subdir   = ""
         self._path_worker: _MtpDefaultPathWorker | None = None
@@ -4589,6 +4733,7 @@ class UsbImportView(QWidget):
         self._count_worker = worker
         self._count_worker.partial.connect(self._on_count_partial)
         self._count_worker.names.connect(self._on_count_names)
+        self._count_worker.size.connect(self._on_count_size)
         self._count_worker.result.connect(self._on_count)
         self._count_worker.start()
         if hasattr(self, '_count_timeout'):
@@ -4642,12 +4787,16 @@ class UsbImportView(QWidget):
     def _on_count_names(self, names: list):
         self._file_names = list(names)
 
+    def _on_count_size(self, total):
+        self._total_bytes = int(total or 0)
+
     def _begin_scan(self):
         """Réinitialise l'affichage des compteurs avant un nouveau scan."""
         self._scanning     = True
         self._scan_partial = 0
         self._file_count   = 0
         self._file_names   = []
+        self._total_bytes  = 0
         self._lbl_count.setText(L("⏳  Analyse en cours…"))
         self._lbl_count.setStyleSheet(self._count_pill_css(scanning=True))
         for btn in (self._btn_copy, self._btn_copy_move,
@@ -4698,6 +4847,8 @@ class UsbImportView(QWidget):
                 total=total, noun=noun, pending=pending, d=date_txt)
         else:
             txt = L("{total} {noun} photos/vidéos").format(total=total, noun=noun)
+        if total and self._total_bytes:
+            txt += f"  ·  {_fmt_bytes(self._total_bytes)}"
         self._lbl_count.setText(txt)
         self._lbl_count.setStyleSheet(self._count_pill_css())
         btn_txt = (L("aucun fichier") if pending == 0
@@ -4791,6 +4942,26 @@ class UsbImportView(QWidget):
         if not self._dcim:
             log.warning("_start appelé sans source définie")
             return
+        # Espace disque : refuse de lancer un import qui ne tiendra pas
+        if mode != UsbCopyWorker.MODE_DRY_RUN and self._total_bytes > 0:
+            import shutil as _sh
+            target = get_usb_target()
+            try:
+                free = _sh.disk_usage(target).free
+            except Exception:
+                free = None
+            margin = 500 * 1024 * 1024   # garde 500 Mo de marge
+            if free is not None and self._total_bytes + margin > free:
+                QMessageBox.warning(
+                    self, L("Espace disque insuffisant"),
+                    L("L'import représente {need} mais il ne reste que {free} "
+                      "sur {target}.\n\nLibérez de l'espace ou changez le "
+                      "dossier de destination dans les Options, puis "
+                      "réessayez.").format(
+                        need=_fmt_bytes(self._total_bytes),
+                        free=_fmt_bytes(free), target=target))
+                return
+
         if mode == UsbCopyWorker.MODE_COPY_DELETE:
             n    = self._pending_count()
             noun = L("fichier") if n == 1 else L("fichiers")
@@ -4850,6 +5021,7 @@ class UsbImportView(QWidget):
             self._worker.log_thumb.connect(self._on_log_thumb)
             self._worker.batch_info.connect(self._on_batch_info)
             self._worker.ask_slow_move.connect(self._on_ask_slow_move)
+            self._worker.write_blocked.connect(self._on_write_blocked)
         else:
             exif_cmd = get_exif()
             if not _check_exiftool(exif_cmd):
@@ -4879,6 +5051,27 @@ class UsbImportView(QWidget):
         self._worker.done.connect(self._on_done)
         self._batch_lbl.setText("")
         self._worker.start()
+
+    def _on_write_blocked(self):
+        """Le téléphone refuse les écritures (souvent : écran verrouillé)."""
+        worker = self._worker
+        if worker is None:
+            return
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(L("Téléphone verrouillé ?"))
+        dlg.setIcon(QMessageBox.Icon.Warning)
+        dlg.setText(L("Le téléphone refuse les écritures."))
+        dlg.setInformativeText(
+            L("C'est généralement le cas quand son écran est verrouillé.\n\n"
+              "Déverrouillez l'écran du téléphone, puis cliquez sur "
+              "Réessayer — ou annulez l'import (rien n'a été modifié)."))
+        btn_retry  = dlg.addButton(L("Réessayer"),
+                                   QMessageBox.ButtonRole.AcceptRole)
+        dlg.addButton(L("Annuler l'import"),
+                      QMessageBox.ButtonRole.RejectRole)
+        dlg.setDefaultButton(btn_retry)
+        dlg.exec()
+        worker.reply_write_blocked(dlg.clickedButton() is btn_retry)
 
     def _on_ask_slow_move(self, n: int):
         """Le téléphone refuse le déplacement direct : continuer (lent) ?"""
