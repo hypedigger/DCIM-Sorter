@@ -8,13 +8,15 @@ Point it at your camera card, USB stick or MTP phone: every photo and video is c
 
 ## Features
 
-- **Sources**: SD cards / USB drives (DCIM), and **phones plugged in MTP mode** (through the Windows Shell — no driver, no phone app needed).
-- **EXIF-based day sorting** via [exiftool](https://exiftool.org/) (the app offers to download it on first run).
-- **Priority subfolders** — files whose path matches your configured folder names (e.g. `_Priority`) are routed to their own tree.
-- **Date filters** — import everything, or only after a given date.
-- **Parallel copy** with per-file progress, duplicate-safe naming.
-- **Delete after copy** (optional, off by default) — clearly confirmed before anything is removed from the source.
-- Animated, themeable UI (cyberpunk / premium / sakura…), remembers your settings.
+- **Sources**: SD cards / USB drives (DCIM), and **phones plugged in MTP mode** (through the Windows Shell — no driver, no phone app needed). Several phones at once each get their own tab.
+- **Four import modes**: *Copy* (source untouched), *Copy + Move* (source files tucked away into `DCIM/_old` — nothing deleted), *Copy + Delete* (only files whose copy is verified are removed), *Preview* (dry run).
+- **EXIF-based day sorting** via [exiftool](https://exiftool.org/) (the app offers to download it on first run) — including **video dates** from QuickTime metadata, which are far more reliable than file dates after a transfer.
+- **Safe by design**: free disk space checked before importing, duplicate detection (same name + size), interrupted MTP imports **resume** where they left off, locked-phone writes detected up front, per-file progress with time remaining and a working Stop button.
+- **One-click re-run** of the last action used with each device.
+- **Date filter** — import everything, or only photos taken since a given date.
+- Windows **toast notification** and sound when an import finishes (both optional).
+- **French / English** interface (Options → Language), 40 themes, 4K/HiDPI.
+- Checks GitHub for a newer release at startup (discreet, offline-safe).
 
 ## Installation
 
@@ -33,19 +35,21 @@ Optional — Start Menu shortcut (also generates the icon):
 python install_start_menu.py
 ```
 
+A standalone `.exe` (no Python required) is published on the [Releases](https://github.com/hypedigger/DCIM-Sorter/releases) page — you can build it yourself with `powershell -File build_exe.ps1`.
+
 ## Usage
 
-1. Plug in your card or phone — the app scans for DCIM sources in the background.
-2. Pick the source and your photo library root.
-3. Choose the date range, check **Delete after copy** only if you want the source cleaned.
-4. Start — files land in `Root\YYYY\to_sort\MM\DD`.
+1. Plug in your card or phone — the app scans for DCIM sources in the background and opens one tab per device.
+2. Pick the folder to import (defaults to `DCIM/Camera` on phones, the whole `DCIM` on cards) and, if you want, a date filter.
+3. Choose a mode — *Preview* shows what would happen without touching anything.
+4. Files land in `Root\YYYY\to_sort\MM\DD`; the *Sort by date* tab then helps you split a month into per-day folders.
 
-Settings (library root, priority folder names, exiftool path, theme) live in the standard Windows registry for the app and never in this repository.
+Settings (library root, destination, priority folder names, exiftool path, language, theme, notifications) live in the Windows registry for the app and never in this repository.
 
 ## Notes
 
 - exiftool is © Phil Harvey, distributed under the Perl Artistic License — downloaded from the official site, never bundled here.
-- UI is currently in French; contributions welcome.
+- Phones must be in **file-transfer (MTP) mode**, with the screen unlocked for modes that write to the phone.
 
 ## Support
 

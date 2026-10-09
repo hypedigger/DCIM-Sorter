@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DCIM Sorter  ·  43 - 13/09/2026 à 22:30
+DCIM Sorter  ·  44 - 09/10/2026 à 21:30
 Organise photos et vidéos par jour via données EXIF
 """
 
@@ -35,13 +35,17 @@ from PyQt6.QtGui import (
 )
 
 # ── Versioning ─────────────────────────────────────────────────────────────
-VERSION      = 43
-CREATED      = "13/09/2026 à 22:30"
+VERSION      = 44
+CREATED      = "09/10/2026 à 21:30"
 APP_NAME     = "DCIM Sorter"
 WINDOW_TITLE = f"{APP_NAME}  ·  {VERSION} - {CREATED}"
 
 # ── Logging ─────────────────────────────────────────────────────────────────
-_LOG_DIR = Path(__file__).parent / "log"
+# Dossier de l'application : à côté de l'exe en version compilée (PyInstaller),
+# à côté du script sinon.
+_APP_DIR = (Path(sys.executable).parent if getattr(sys, "frozen", False)
+            else Path(__file__).parent)
+_LOG_DIR = _APP_DIR / "log"
 _LOG_DIR.mkdir(exist_ok=True)
 _log_file = _LOG_DIR / f"{VERSION}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
@@ -1523,7 +1527,7 @@ class _ExiftoolDownloadWorker(QThread):
             url = f"https://exiftool.org/{zip_name}"
 
             # 2 — télécharger le zip
-            dest_dir = Path(__file__).parent
+            dest_dir = _APP_DIR
             zip_path = dest_dir / zip_name
             with urllib.request.urlopen(url, timeout=120) as resp:
                 total      = int(resp.headers.get('Content-Length', 0))
@@ -5030,7 +5034,12 @@ class UsbImportView(QWidget):
             import shutil as _sh
             target = get_usb_target()
             try:
-                free = _sh.disk_usage(target).free
+                # le dossier cible peut ne pas exister encore : on remonte
+                # au premier ancêtre existant (au pire, la racine du disque)
+                probe = Path(target)
+                while not probe.exists() and probe.parent != probe:
+                    probe = probe.parent
+                free = _sh.disk_usage(str(probe)).free
             except Exception:
                 free = None
             margin = 500 * 1024 * 1024   # garde 500 Mo de marge
@@ -5354,7 +5363,7 @@ class UsbImportView(QWidget):
     def _save_mtp_log(self):
         try:
             import time as _time
-            log_dir = Path(__file__).parent / "log"
+            log_dir = _LOG_DIR
             log_dir.mkdir(exist_ok=True)
             fname = log_dir / f"mtp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
             lines = []
@@ -6094,6 +6103,9 @@ class MainWindow(QMainWindow):
         self._bg_timer.timeout.connect(self._tick_bg)
         self._bg_timer.start(33)
 
+        # Téléphones branchés : nom d'appareil → (bouton d'onglet, vue)
+        self._phones: dict[str, tuple] = {}
+        self._last_phone_scan: set[str] = set()
         self._setup_ui()
         self._center()
 
@@ -6105,9 +6117,7 @@ class MainWindow(QMainWindow):
         self._usb_timer.timeout.connect(self._poll_usb)
         self._usb_timer.start(2000)
         self._usb_state: tuple[str, str] | None = None
-        # Téléphones branchés : nom d'appareil → (bouton d'onglet, vue)
-        self._phones: dict[str, tuple] = {}
-        self._last_phone_scan: set[str] = set()
+
         self._mtp_poll_counter   = 0
         self._mtp_scan_worker: object | None = None
         QTimer.singleShot(200, self._poll_usb)
