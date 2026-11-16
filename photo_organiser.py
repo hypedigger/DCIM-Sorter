@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DCIM Sorter  ·  44 - 09/10/2026 à 21:30
+DCIM Sorter  ·  45 - 16/11/2026 à 12:00
 Organise photos et vidéos par jour via données EXIF
 """
 
@@ -31,12 +31,12 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QPainter, QPainterPath, QColor, QLinearGradient, QRadialGradient,
-    QPen, QFont, QBrush, QPixmap, QIcon, QCursor, QFontMetrics
+    QPen, QFont, QBrush, QPixmap, QIcon, QCursor, QFontMetrics, QPalette
 )
 
 # ── Versioning ─────────────────────────────────────────────────────────────
-VERSION      = 44
-CREATED      = "09/10/2026 à 21:30"
+VERSION      = 45
+CREATED      = "16/11/2026 à 12:00"
 APP_NAME     = "DCIM Sorter"
 WINDOW_TITLE = f"{APP_NAME}  ·  {VERSION} - {CREATED}"
 
@@ -806,6 +806,18 @@ _EN: dict[str, str] = {
     "{d} est de retour.": "{d} is back.",
     "L'import « {a} » a été interrompu par la déconnexion. Le reprendre maintenant ?\n\nLes fichiers déjà transférés ne seront pas retransférés.": "The “{a}” import was interrupted by the disconnection. Resume it now?\n\nAlready-transferred files will not be transferred again.",
     "Reprendre": "Resume",
+    # Préparer une année
+    "Préparer une année": "Prepare a year",
+    "🗓  Préparer une année": "🗓  Prepare a year",
+    "Crée les dossiers mois 01 à 12 dans votre bibliothèque, et les sous-dossiers cochés dans chaque mois.\nRien n'est modifié ni écrasé : seuls les dossiers manquants sont créés.": "Creates the month folders 01 to 12 in your library, plus the ticked subfolders inside each month.\nNothing is modified or overwritten: only missing folders are created.",
+    "Année :": "Year:",
+    "Sous-dossiers à créer dans chaque mois :": "Subfolders to create in each month:",
+    "{n} dossiers à créer": "{n} folders to create",
+    "{n} existent déjà": "{n} already exist",
+    "Créer les dossiers": "Create the folders",
+    "{n} dossiers créés, mais {e} erreurs :\n{d}": "{n} folders created, but {e} errors:\n{d}",
+    "✓  {n} dossiers créés pour {y}.": "✓  {n} folders created for {y}.",
+    "Crée les dossiers mois (01-12) d'une année, et vos sous-dossiers prioritaires dans chaque mois.": "Creates a year's month folders (01-12), plus your priority subfolders inside each month.",
     # __EN_MORE__
 }
 
@@ -1244,15 +1256,22 @@ def apply_theme(key: str | None = None):
             QMessageBox             {{ background: rgb({t['panel'][0]},{t['panel'][1]},{t['panel'][2]}); }}
             QMessageBox QPushButton {{ padding: 6px 20px; }}
             QToolTip {{
-                background: rgb({t['panel'][0]},{t['panel'][1]},{t['panel'][2]});
+                background-color: rgb({t['panel'][0]},{t['panel'][1]},{t['panel'][2]});
                 color: {t['text']};
                 border: 1px solid {t['a1']};
-                border-radius: 10px;
                 padding: 10px 14px;
                 font-family: 'Segoe UI';
                 font-size: 10pt;
             }}
         """)
+        # Le style seul ne suffit pas partout : sous Windows, un border-radius
+        # sur QToolTip fait ignorer le fond (fenêtre noire). On fixe aussi la
+        # palette, qui sert de repli quel que soit le rendu.
+        pal = app.palette()
+        pal.setColor(QPalette.ColorRole.ToolTipBase,
+                     QColor(t['panel'][0], t['panel'][1], t['panel'][2]))
+        pal.setColor(QPalette.ColorRole.ToolTipText, QColor(t['text']))
+        app.setPalette(pal)
     theme_sig.changed.emit()
 
 
@@ -3374,6 +3393,15 @@ class FolderListView(QWidget):
         self._btn_browse.clicked.connect(self.browse_requested)
         self._btn_browse.installEventFilter(_instant_tip)
 
+        self._btn_year = GradientButton(L("🗓  Préparer une année"))
+        self._btn_year.setFixedWidth(210)
+        self._btn_year.setToolTip(
+            L("Crée les dossiers mois (01-12) d'une année, et vos "
+              "sous-dossiers prioritaires dans chaque mois."))
+        self._btn_year.clicked.connect(self._prepare_year)
+        self._btn_year.installEventFilter(_instant_tip)
+
+        bot.addWidget(self._btn_year)
         bot.addWidget(self._btn_browse)
         lay.addLayout(bot)
 
@@ -3461,6 +3489,11 @@ class FolderListView(QWidget):
         self._page_lbl.setText(L("Page {a} / {b}").format(a=self._page + 1, b=total))
         self._btn_prev.setEnabled(self._page > 0)
         self._btn_next.setEnabled(self._page < total - 1)
+
+    def _prepare_year(self):
+        dlg = PrepareYearDialog(self)
+        if dlg.exec() and dlg.created:
+            self.start_scan()   # la liste reflète les nouveaux dossiers
 
     def _go_prev(self):
         if self._page > 0:
@@ -5582,6 +5615,195 @@ class UsbAboutDialog(QDialog):
         b_close.clicked.connect(self.accept)
         close_row.addWidget(b_close)
         lay.addLayout(close_row)
+
+
+# ── Prepare Year Dialog ────────────────────────────────────────────────────
+
+class PrepareYearDialog(QDialog):
+    """Prépare l'arborescence d'une année : dossiers mois 01-12 et, au choix,
+    les sous-dossiers prioritaires dans chaque mois.
+
+    Ne crée que ce qui manque — un mois existant sous un nom enrichi
+    (« 03 Mars ») est reconnu par son préfixe et réutilisé tel quel.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(L("Préparer une année"))
+        self.setMinimumWidth(460)
+        self.created = 0
+        self._build_style()
+        self._setup_ui()
+        theme_sig.changed.connect(self._build_style)
+        self._refresh_preview()
+
+    def _build_style(self):
+        t = T()
+        r, g, b = t['panel'][:3]
+        light = (r + g + b) / 3 > 128
+        btn_bg  = "rgba(0,0,0,10)"  if light else "rgba(255,255,255,18)"
+        btn_brd = "rgba(0,0,0,16)"  if light else "rgba(255,255,255,28)"
+        btn_hov = "rgba(0,0,0,20)"  if light else "rgba(255,255,255,30)"
+        self.setStyleSheet(f"""
+            QDialog  {{ background: rgb({r},{g},{b}); }}
+            QLabel   {{ color: {t['text']}; background: transparent; }}
+            QCheckBox {{ color: {t['text']}; background: transparent; font-size: 10pt; }}
+            QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 3px; }}
+            QCheckBox::indicator:unchecked {{ background: rgba(255,255,255,230);
+                border: 2px solid rgba(160,160,160,200); }}
+            QCheckBox::indicator:checked {{ background: {t['a1']};
+                border: 2px solid {t['a1']}; }}
+            QSpinBox {{
+                background: {btn_bg}; color: {t['text']};
+                border: 1px solid {btn_brd}; border-radius: 8px; padding: 6px 12px;
+                font-size: 11pt; font-weight: bold;
+            }}
+            QPushButton {{
+                background: {btn_bg}; color: {t['text']};
+                border: 1px solid {btn_brd}; border-radius: 8px; padding: 6px 20px;
+            }}
+            QPushButton:hover {{ background: {btn_hov}; }}
+            QPushButton#btn_ok {{
+                background: {t['a1']}; color: #000; font-weight: bold;
+                border: none;
+            }}
+            QPushButton#btn_ok:hover {{ background: {t['a2']}; color: #fff; }}
+        """)
+
+    def _setup_ui(self):
+        t   = T()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(14)
+
+        title = QLabel(L("🗓  Préparer une année"))
+        title.setStyleSheet(
+            f"font-size: 15pt; font-weight: bold; color: {t['a1']};")
+        lay.addWidget(title)
+
+        intro = QLabel(
+            L("Crée les dossiers mois 01 à 12 dans votre bibliothèque, "
+              "et les sous-dossiers cochés dans chaque mois.\n"
+              "Rien n'est modifié ni écrasé : seuls les dossiers manquants "
+              "sont créés."))
+        intro.setWordWrap(True)
+        intro.setStyleSheet(f"font-size: 10pt; color: {t['dim']};")
+        lay.addWidget(intro)
+
+        year_row = QHBoxLayout()
+        year_lbl = QLabel(L("Année :"))
+        year_lbl.setStyleSheet("font-size: 11pt;")
+        self._year = QSpinBox()
+        self._year.setRange(1990, 2099)
+        self._year.setValue(datetime.now().year)
+        self._year.setFixedWidth(110)
+        self._year.valueChanged.connect(self._refresh_preview)
+        year_row.addWidget(year_lbl)
+        year_row.addWidget(self._year)
+        year_row.addStretch()
+        lay.addLayout(year_row)
+
+        # Sous-dossiers prioritaires configurés dans les Options
+        self._prio_cbs: list[QCheckBox] = []
+        prios = get_prios()
+        if prios:
+            sub_lbl = QLabel(L("Sous-dossiers à créer dans chaque mois :"))
+            sub_lbl.setStyleSheet("font-size: 10pt;")
+            lay.addWidget(sub_lbl)
+            for name in prios:
+                cb = QCheckBox(name)
+                cb.setChecked(True)
+                cb.toggled.connect(self._refresh_preview)
+                self._prio_cbs.append(cb)
+                lay.addWidget(cb)
+
+        self._preview = QLabel("")
+        self._preview.setWordWrap(True)
+        lay.addWidget(self._preview)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        b_cancel = QPushButton(L("Annuler"))
+        b_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(b_cancel)
+        self._b_ok = QPushButton(L("Créer les dossiers"))
+        self._b_ok.setObjectName("btn_ok")
+        self._b_ok.clicked.connect(self._create)
+        btn_row.addWidget(self._b_ok)
+        lay.addLayout(btn_row)
+
+    # ── Logique ─────────────────────────────────────────────────────────────
+    def _selected_prios(self) -> list[str]:
+        return [cb.text() for cb in self._prio_cbs if cb.isChecked()]
+
+    def _plan(self) -> tuple[list[Path], int]:
+        """(dossiers manquants à créer, nombre déjà existants)."""
+        base  = Path(get_root()) / str(self._year.value())
+        prios = self._selected_prios()
+        # Mois existants, reconnus par leur préfixe à 2 chiffres (« 03 Mars »)
+        existing_months: dict[str, Path] = {}
+        if base.exists():
+            try:
+                for d in sorted(base.iterdir()):
+                    if d.is_dir() and len(d.name) >= 2 and d.name[:2].isdigit():
+                        existing_months.setdefault(d.name[:2], d)
+            except Exception:
+                pass
+        to_create: list[Path] = []
+        existing = 0
+        for m in range(1, 13):
+            key  = f"{m:02d}"
+            mdir = existing_months.get(key)
+            if mdir is None:
+                mdir = base / key
+                to_create.append(mdir)
+            else:
+                existing += 1
+            for prio in prios:
+                pdir = mdir / prio
+                if pdir.exists():
+                    existing += 1
+                else:
+                    to_create.append(pdir)
+        return to_create, existing
+
+    def _refresh_preview(self):
+        t = T()
+        to_create, existing = self._plan()
+        base = Path(get_root()) / str(self._year.value())
+        parts = [L("{n} dossiers à créer").format(n=len(to_create))]
+        if existing:
+            parts.append(L("{n} existent déjà").format(n=existing))
+        self._preview.setText(f"📂  {base}\n" + "  ·  ".join(parts))
+        self._preview.setStyleSheet(
+            f"font-size: 10pt; color: {t['text']};"
+            f" background: rgba(128,128,128,18); border-radius: 8px;"
+            f" padding: 10px;")
+        self._b_ok.setEnabled(bool(to_create))
+
+    def _create(self):
+        to_create, _ = self._plan()
+        done, errors = 0, []
+        for d in to_create:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                done += 1
+            except Exception as e:
+                errors.append(f"{d.name} : {e}")
+        self.created = done
+        if errors:
+            QMessageBox.warning(
+                self, L("Préparer une année"),
+                L("{n} dossiers créés, mais {e} erreurs :\n{d}").format(
+                    n=done, e=len(errors), d="\n".join(errors[:5])))
+        else:
+            QMessageBox.information(
+                self, L("Préparer une année"),
+                L("✓  {n} dossiers créés pour {y}.").format(
+                    n=done, y=self._year.value()))
+        log.info("Préparation année %s : %d dossiers créés, %d erreurs",
+                 self._year.value(), done, len(errors))
+        self.accept()
 
 
 # ── Options Dialog ─────────────────────────────────────────────────────────

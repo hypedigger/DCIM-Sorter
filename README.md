@@ -14,6 +14,7 @@ Point it at your camera card, USB stick or MTP phone: every photo and video is c
 - **Safe by design**: free disk space checked before importing, duplicate detection (same name + size), interrupted MTP imports **resume** where they left off, locked-phone writes detected up front, per-file progress with time remaining and a working Stop button.
 - **One-click re-run** of the last action used with each device.
 - **Date filter** — import everything, or only photos taken since a given date.
+- **Prepare a year** — one click creates the 12 month folders of a chosen year, plus your priority subfolders inside each month (existing folders are left untouched).
 - Windows **toast notification** and sound when an import finishes (both optional).
 - **French / English** interface (Options → Language), 40 themes, 4K/HiDPI.
 - Checks GitHub for a newer release at startup (discreet, offline-safe).
