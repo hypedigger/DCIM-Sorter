@@ -61,7 +61,8 @@ log = logging.getLogger("photo_organiser")
 log.info("Démarrage — version %s", VERSION)
 
 # ── Defaults ───────────────────────────────────────────────────────────────
-DEFAULT_ROOT = r"E:\Photos"
+# Défaut neutre : le dossier Images de l'utilisateur (réglable dans Options)
+DEFAULT_ROOT = str(Path.home() / "Pictures")
 DEFAULT_PRIORITY  = "_Priority"
 DEFAULT_EXIF = "exiftool.exe"
 PHOTO_EXT    = {'.jpg', '.jpeg', '.png', '.arw', '.cr2', '.cr3'}
@@ -583,7 +584,7 @@ def get_all_ext() -> set[str]:
     extra = {'.' + e.lstrip('.').lower() for e in get_extra_formats()}
     return PHOTO_EXT | VIDEO_EXT | extra
 
-DEFAULT_USB_TARGET = r"E:\Photos"
+DEFAULT_USB_TARGET = DEFAULT_ROOT
 
 # ── Langue ──────────────────────────────────────────────────────────────────
 _lang_cache: str | None = None
