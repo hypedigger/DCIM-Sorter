@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DCIM Sorter  ·  45 - 16/11/2026 à 12:00
+DCIM Sorter  ·  46 - 16/11/2026 à 17:30
 Organise photos et vidéos par jour via données EXIF
 """
 
@@ -35,8 +35,8 @@ from PyQt6.QtGui import (
 )
 
 # ── Versioning ─────────────────────────────────────────────────────────────
-VERSION      = 45
-CREATED      = "16/11/2026 à 12:00"
+VERSION      = 46
+CREATED      = "16/11/2026 à 17:30"
 APP_NAME     = "DCIM Sorter"
 WINDOW_TITLE = f"{APP_NAME}  ·  {VERSION} - {CREATED}"
 
@@ -819,6 +819,14 @@ _EN: dict[str, str] = {
     "{n} dossiers créés, mais {e} erreurs :\n{d}": "{n} folders created, but {e} errors:\n{d}",
     "✓  {n} dossiers créés pour {y}.": "✓  {n} folders created for {y}.",
     "Crée les dossiers mois (01-12) d'une année, et vos sous-dossiers prioritaires dans chaque mois.": "Creates a year's month folders (01-12), plus your priority subfolders inside each month.",
+    # Cartes dossier / visionneuses
+    "Ouvrir dans l'Explorateur": "Open in Explorer",
+    "Ouvrir dans XnView": "Open in XnView",
+    "Ouvrir dans SpeedDisplay": "Open in SpeedDisplay",
+    "({n} fichier)": "({n} file)",
+    "({n} fichiers)": "({n} files)",
+    "XnView introuvable": "XnView not found",
+    "XnView n'a pas été trouvé sur ce système.\nVérifiez que XnViewMP est bien installé.": "XnView was not found on this system.\nMake sure XnViewMP is installed.",
     # __EN_MORE__
 }
 
@@ -1327,9 +1335,71 @@ def open_in_xnview(path: str):
     if _xnview_path:
         subprocess.Popen([_xnview_path, path])
     else:
-        QMessageBox.warning(None, "XnView introuvable",
-            "XnView n'a pas été trouvé sur ce système.\n"
-            "Vérifiez que XnViewMP est bien installé.")
+        QMessageBox.warning(None, L("XnView introuvable"),
+            L("XnView n'a pas été trouvé sur ce système.\n"
+              "Vérifiez que XnViewMP est bien installé."))
+
+
+def find_speeddisplay() -> str | None:
+    """Chemin de SpeedDisplay (visionneuse hypedigger), ou None.
+
+    Lu dans l'association de fichiers qu'il enregistre lui-même (ProgId
+    « Lumen.Media »), puis dans les emplacements d'installation usuels.
+    """
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Classes\Lumen.Media\shell\open\command") as k:
+            cmd, _ = winreg.QueryValueEx(k, "")
+        m = re.match(r'\s*"([^"]+\.exe)"', cmd) or re.match(r"\s*(\S+\.exe)", cmd)
+        if m and Path(m.group(1)).exists():
+            return m.group(1)
+    except Exception:
+        pass
+    for base in (os.environ.get("LOCALAPPDATA", ""),
+                 os.environ.get("ProgramFiles", ""),
+                 os.environ.get("ProgramFiles(x86)", "")):
+        if not base:
+            continue
+        for rel in ("SpeedDisplay\\SpeedDisplay.exe",
+                    "Programs\\SpeedDisplay\\SpeedDisplay.exe"):
+            cand = Path(base) / rel
+            if cand.exists():
+                return str(cand)
+    return None
+
+
+_speeddisplay_path: str | None = None
+_speeddisplay_checked = False
+
+
+def speeddisplay_path() -> str | None:
+    global _speeddisplay_path, _speeddisplay_checked
+    if not _speeddisplay_checked:
+        _speeddisplay_path = find_speeddisplay()
+        _speeddisplay_checked = True
+    return _speeddisplay_path
+
+
+def open_in_speeddisplay(path: str):
+    """Ouvre le dossier dans SpeedDisplay.
+
+    SpeedDisplay n'accepte qu'un fichier en argument : on lui passe la
+    première photo/vidéo du dossier, il ouvre alors ce dossier sur elle.
+    """
+    exe = speeddisplay_path()
+    if not exe:
+        return
+    target = path
+    try:
+        all_ext = get_all_ext()
+        medias = sorted(f for f in Path(path).iterdir()
+                        if f.is_file() and f.suffix.lower() in all_ext)
+        if medias:
+            target = str(medias[0])
+    except Exception:
+        pass
+    subprocess.Popen([exe, target])
 
 
 def find_exiftool() -> str | None:
@@ -2948,6 +3018,17 @@ class IconButton(QPushButton):
             p.drawRoundedRect(QRectF(4, 8, 9, 4), 2, 2)
             # Body
             p.drawRoundedRect(QRectF(4, 10, 20, 12), 2, 2)
+        elif self._icon_type == 'speed':
+            # Éclair (SpeedDisplay) dans un cadre arrondi, comme 'photo'
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(ic, 1.5))
+            p.drawRoundedRect(QRectF(4, 5, 20, 18), 3, 3)
+            p.setPen(Qt.PenStyle.NoPen)
+            bolt = QPainterPath()
+            bolt.moveTo(15.5, 7.5); bolt.lineTo(9.5, 15.0); bolt.lineTo(13.5, 15.0)
+            bolt.lineTo(12.0, 20.5); bolt.lineTo(18.5, 12.5); bolt.lineTo(14.5, 12.5)
+            bolt.closeSubpath()
+            p.fillPath(bolt, ic)
         else:   # 'photo'
             # Frame outline
             p.setBrush(Qt.BrushStyle.NoBrush)
@@ -2970,6 +3051,7 @@ class FolderCard(QWidget):
     clicked  = pyqtSignal(dict)
     open_exp = pyqtSignal(str)
     open_xnv = pyqtSignal(str)
+    open_spd = pyqtSignal(str)
 
     def __init__(self, data: dict, parent=None):
         super().__init__(parent)
@@ -2998,22 +3080,30 @@ class FolderCard(QWidget):
         lay.addWidget(self._lbl_path, 1)
 
         count = data.get('count', -1)
-        cnt_s = f"({count} fichier{'s' if count > 1 else ''})" if count > 0 else "…"
+        cnt_s = ((L("({n} fichiers)") if count > 1 else L("({n} fichier)")).format(n=count)
+                 if count > 0 else "…")
         self._lbl_count = QLabel(cnt_s)
         f2 = self._lbl_count.font(); f2.setPointSize(10); self._lbl_count.setFont(f2)
         self._lbl_count.setFixedWidth(115)
         self._lbl_count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(self._lbl_count)
 
-        self._btn_exp = IconButton('folder', "Ouvrir dans l'Explorateur")
-        self._btn_xnv = IconButton('photo',  "Ouvrir dans XnView")
+        self._btn_exp = IconButton('folder', L("Ouvrir dans l'Explorateur"))
+        self._btn_xnv = IconButton('photo',  L("Ouvrir dans XnView"))
         self._btn_exp.clicked.connect(lambda: self.open_exp.emit(self.data['path']))
         self._btn_xnv.clicked.connect(lambda: self.open_xnv.emit(self.data['path']))
         lay.addWidget(self._btn_exp)
         lay.addWidget(self._btn_xnv)
+        relay = [self._lbl_path, self._lbl_count, self._btn_exp, self._btn_xnv]
+        if speeddisplay_path():
+            self._btn_spd = IconButton('speed', L("Ouvrir dans SpeedDisplay"))
+            self._btn_spd.clicked.connect(
+                lambda: self.open_spd.emit(self.data['path']))
+            lay.addWidget(self._btn_spd)
+            relay.append(self._btn_spd)
 
         # Relay child enter/leave so hover animation stays smooth
-        for w in [self._lbl_path, self._lbl_count, self._btn_exp, self._btn_xnv]:
+        for w in relay:
             w.installEventFilter(self)
 
         self._apply_theme()
@@ -3473,6 +3563,7 @@ class FolderListView(QWidget):
             card.clicked.connect(self.folder_selected)
             card.open_exp.connect(open_in_explorer)
             card.open_xnv.connect(open_in_xnview)
+            card.open_spd.connect(open_in_speeddisplay)
 
             eff  = QGraphicsOpacityEffect(card)
             eff.setOpacity(0)
