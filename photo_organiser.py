@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DCIM Sorter  ·  46 - 16/11/2026 à 17:30
+DCIM Sorter  ·  47 - 23/11/2026 à 16:00
 Organise photos et vidéos par jour via données EXIF
 """
 
@@ -35,8 +35,8 @@ from PyQt6.QtGui import (
 )
 
 # ── Versioning ─────────────────────────────────────────────────────────────
-VERSION      = 46
-CREATED      = "16/11/2026 à 17:30"
+VERSION      = 47
+CREATED      = "23/11/2026 à 16:00"
 APP_NAME     = "DCIM Sorter"
 WINDOW_TITLE = f"{APP_NAME}  ·  {VERSION} - {CREATED}"
 
@@ -1735,6 +1735,7 @@ class UsbCopyWorker(QThread):
     batch_info = pyqtSignal(str)                   # label texte phase
     progress   = pyqtSignal(int, int)              # current, total
     done       = pyqtSignal(int, int, int, float)  # copied, skipped, errors, secs
+    open_dir   = pyqtSignal(str)                   # dossier à ouvrir en fin d'import
 
     MODE_COPY        = 'copy'
     MODE_COPY_DELETE = 'copy_delete'
@@ -1902,10 +1903,14 @@ class UsbCopyWorker(QThread):
                 with dest_lock:
                     dest = self._unique_dest(plain)
                 shutil.copy2(str(f), str(dest))
+                with dest_lock:
+                    imported_years.add(date.year)
                 thumb = str(dest) if f.suffix.lower() in self._THUMB_EXT else None
                 return 'move', f"{f.name}  →  {label}", f, thumb, fsize
             except Exception as e:
                 return 'error', f"{f.name} : {e}", None, None, 0
+
+        imported_years: set[int] = set()   # années des fichiers copiés
 
         done_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as executor:
@@ -1999,6 +2004,7 @@ class UsbCopyWorker(QThread):
                 except OSError:
                     pass
 
+        self.open_dir.emit(_import_open_dir(self.target, imported_years, False))
         elapsed = (datetime.now() - t0).total_seconds()
         self.done.emit(copied, skipped, errors, elapsed)
 
@@ -2086,6 +2092,16 @@ def _exif_date(exif_cmd: str, path: Path) -> datetime | None:
     return None
 
 
+def _import_open_dir(target: str, years: set[int], undated: bool) -> str:
+    """Dossier à ouvrir après un import : le « to_sort » de l'année la plus
+    ancienne parmi les fichiers importés, sinon « sans_date », sinon la cible."""
+    if years:
+        return str(Path(target) / str(min(years)) / "to_sort")
+    if undated:
+        return str(Path(target) / "sans_date")
+    return target
+
+
 def _fmt_eta(seconds: float) -> str:
     s = max(0, int(seconds))
     return f"{s // 60} min {s % 60:02d}" if s >= 60 else f"{s} s"
@@ -2111,6 +2127,7 @@ class MtpCopyWorker(QThread):
     progress   = pyqtSignal(int, int)       # current, total
     done       = pyqtSignal(int, int, int, float)
     ask_slow_move = pyqtSignal(int)         # n fichiers — demande continuer/arrêter
+    open_dir   = pyqtSignal(str)            # dossier à ouvrir en fin d'import
     write_blocked = pyqtSignal()            # le support refuse les écritures
 
     MODE_COPY        = 'copy'
@@ -2575,6 +2592,8 @@ class MtpCopyWorker(QThread):
         copied = skipped = errors = 0
         imported_ok: set[str] = set()      # noms sûrs à supprimer du téléphone
         imported_dest: dict[str, Path] = {}  # nom source → copie sur le disque
+        imported_years: set[int] = set()     # années des fichiers rangés
+        imported_undated = False
         current_batch = ""
 
         for idx, f in enumerate(temp_files):
@@ -2626,6 +2645,10 @@ class MtpCopyWorker(QThread):
                 copied += 1
                 imported_ok.add(f.name)
                 imported_dest[f.name] = dest_file
+                if date:
+                    imported_years.add(date.year)
+                else:
+                    imported_undated = True
                 thumb = str(dest_file) if f.suffix.lower() in self._THUMB_EXT else ""
                 self.log_thumb.emit('move', f"{f.name}  →  {dest_str}", thumb)
             except Exception as e:
@@ -2708,6 +2731,8 @@ class MtpCopyWorker(QThread):
                         n=not_deleted))
 
         self.batch_info.emit(L("✓ Terminé"))
+        self.open_dir.emit(_import_open_dir(self.target, imported_years,
+                                            imported_undated))
         elapsed = (datetime.now() - t0).total_seconds()
         self.done.emit(copied, skipped, errors, elapsed)
 
@@ -4765,8 +4790,7 @@ class UsbImportView(QWidget):
         # Bandeau de fin, en tête de la zone de progression
         self._done_banner = _DoneBanner()
         self._done_banner.setVisible(False)
-        self._done_banner.btn_open.clicked.connect(
-            lambda: os.startfile(get_usb_target()))
+        self._done_banner.btn_open.clicked.connect(self._open_import_dir)
         prog_lay.insertWidget(0, self._done_banner)
 
         stop_row = QHBoxLayout()
@@ -5267,6 +5291,8 @@ class UsbImportView(QWidget):
             self._worker.log_thumb.connect(self._on_log_thumb)
             self._worker.progress.connect(self._on_progress_usb)
         self._worker.log_entry.connect(self._on_log)
+        self._open_dir_path = get_usb_target()
+        self._worker.open_dir.connect(self._on_open_dir)
         if self._source == 'mtp':
             self._worker.progress.connect(self._on_progress)
         self._worker.done.connect(self._on_done)
@@ -5293,6 +5319,17 @@ class UsbImportView(QWidget):
         dlg.setDefaultButton(btn_retry)
         dlg.exec()
         worker.reply_write_blocked(dlg.clickedButton() is btn_retry)
+
+    def _on_open_dir(self, path: str):
+        self._open_dir_path = path
+        self._done_banner.btn_open.setToolTip(path)
+
+    def _open_import_dir(self):
+        """Ouvre le dossier « to_sort » de l'import (repli : la destination)."""
+        path = getattr(self, '_open_dir_path', '') or get_usb_target()
+        if not os.path.isdir(path):
+            path = get_usb_target()
+        os.startfile(path)
 
     def _on_ask_slow_move(self, n: int):
         """Le téléphone refuse le déplacement direct : continuer (lent) ?"""
